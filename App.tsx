@@ -1,21 +1,14 @@
 
-
-
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { MineIcon, FriendsIcon, EarnIcon, BoostIcon, EnergyIcon, RocketLaunchIcon, PlusIcon, MultiTapIcon, AutoMineIcon, GiftIcon, CheckBadgeIcon, TargetIcon, ClipboardIcon, ArrowUpCircleIcon } from './components/Icons';
-
-// Allow TypeScript to recognize the Telegram Web App object
-declare global {
-  interface Window {
-    Telegram: any;
-  }
-}
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { HomeIcon, MineIcon, FriendsIcon, EarnIcon, BoostIcon, EnergyIcon, RocketLaunchIcon, PlusIcon, MultiTapIcon, AutoMineIcon, GiftIcon, CheckBadgeIcon, TargetIcon, ClipboardIcon, ArrowUpCircleIcon, StarIcon, WalletIcon } from './components/Icons';
 
 // --- Type Definitions ---
 type TapAnimation = {
   id: number;
   x: number;
   y: number;
+  value: number;
+  isBonus: boolean;
 };
 
 type League = {
@@ -45,7 +38,7 @@ type ActiveBoosts = {
 
 type Friend = {
     id: number;
-    name: string;
+    name:string;
     score: number;
     avatar: string;
 };
@@ -61,13 +54,40 @@ type Task = {
   icon: React.FC<{ className?: string }>;
 };
 
-type TelegramUser = {
-  id: number;
-  first_name: string;
-  last_name?: string;
-  username?: string;
-  language_code: string;
+type SpinRewardType = 'coins' | 'energy' | 'boost_turbo_tap' | 'boost_multi_tap';
+
+type SpinReward = {
+    type: SpinRewardType;
+    value: number; // For coins, the amount. For energy, 1=full. For boosts, duration.
+    label: string;
 };
+
+type GiftBoxReward = {
+    type: 'coins' | 'energy' | 'boost_turbo_tap';
+    value: number;
+    label: string;
+};
+
+type ActiveView = 'tap' | 'frens' | 'wallet';
+
+// --- TypeScript Declarations for Telegram Web App ---
+declare global {
+  interface Window {
+    Telegram?: {
+      WebApp: {
+        initDataUnsafe?: {
+          start_param?: string;
+        };
+        openTelegramLink: (url: string) => void;
+      }
+    };
+    adsgram?: {
+      isAvailable: () => boolean;
+      show: (type: string, callback: (result: { success: boolean }) => void) => void;
+    };
+  }
+}
+
 
 // --- Constants ---
 const ENERGY_REGEN_RATE = 2; // per second
@@ -75,13 +95,20 @@ const ENERGY_PER_TAP = 1;
 const INVITE_BONUS = 1000;
 const AUTO_MINE_RATE = 5; // coins per second
 const DAILY_REWARD_COINS = 500;
-const REFERRAL_BONUS = 2500;
+const STREAK_TIMEOUT = 1500; // ms to keep streak alive
+const STREAK_MILESTONES: { [key: number]: number } = {
+  10: 2, // At 10 taps, get 2x bonus
+  25: 3,
+  50: 5,
+  100: 10,
+};
 
-// Sound Effect URLs
-const TAP_SOUND_URL = 'https://cdn.pixabay.com/download/audio/2022/03/15/audio_2770f4388b.mp3';
-const CLAIM_SOUND_URL = 'https://cdn.pixabay.com/download/audio/2022/10/14/audio_a1297b6a4a.mp3';
-const PURCHASE_SOUND_URL = 'https://cdn.pixabay.com/download/audio/2022/03/10/audio_c9a8f26a1d.mp3';
-const BONUS_SOUND_URL = 'https://cdn.pixabay.com/download/audio/2022/03/10/audio_133a51feba.mp3';
+const STREAK_REWARDS: { [key: number]: number } = {
+  10: 100,
+  25: 300,
+  50: 750,
+  100: 2000,
+};
 
 
 const LEAGUES: League[] = [
@@ -151,6 +178,24 @@ const TASKS: Task[] = [
     }
 ];
 
+const WHEEL_REWARDS: SpinReward[] = [
+    { type: 'coins', value: 500, label: '500' },
+    { type: 'energy', value: 1, label: '⚡️' },
+    { type: 'coins', value: 2500, label: '2.5k' },
+    { type: 'boost_turbo_tap', value: 30, label: 'Turbo' },
+    { type: 'coins', value: 1000, label: '1k' },
+    { type: 'coins', value: 100, label: '100' },
+    { type: 'coins', value: 5000, label: '5k' },
+    { type: 'boost_multi_tap', value: 20, label: 'Multi' },
+];
+
+const GIFT_BOX_REWARDS: GiftBoxReward[] = [
+    { type: 'coins', value: 250, label: '250 Coins' },
+    { type: 'coins', value: 1000, label: '1,000 Coins' },
+    { type: 'coins', value: 5000, label: '5,000 Coins' },
+    { type: 'energy', value: 500, label: '500 Energy' },
+    { type: 'boost_turbo_tap', value: 15, label: '15s Turbo Tap Boost' },
+];
 
 // --- Helper Functions ---
 const getLeagueInfo = (score: number) => {
@@ -172,14 +217,52 @@ const getLeagueInfo = (score: number) => {
     return { currentLeague, nextLeague, progress };
 };
 
-const playSound = (soundUrl: string) => {
-    const audio = new Audio(soundUrl);
-    audio.volume = 0.5;
-    audio.play().catch(error => console.error("Error playing sound:", error));
-};
-
 
 // --- Components ---
+const Notification: React.FC<{ message: string; onClose: () => void }> = ({ message, onClose }) => (
+    <div className="fixed top-5 right-5 bg-green-500/90 backdrop-blur-sm border border-green-400 text-white py-2 px-4 rounded-lg shadow-lg z-50 animate-fade-in flex items-center gap-4">
+        <span>{message}</span>
+        <button onClick={onClose} className="text-lg font-bold opacity-70 hover:opacity-100">&times;</button>
+    </div>
+);
+
+const GiftBoxModal: React.FC<{
+    isOpen: boolean;
+    onClose: () => void;
+    reward: GiftBoxReward | null;
+}> = ({ isOpen, onClose, reward }) => {
+    if (!isOpen || !reward) return null;
+
+    const getRewardIcon = () => {
+        switch(reward.type) {
+            case 'coins': return <img src="https://picsum.photos/24/24?grayscale" className="w-12 h-12 rounded-full" alt="Coins icon" />;
+            case 'energy': return <EnergyIcon className="w-12 h-12 text-yellow-400" />;
+            case 'boost_turbo_tap': return <RocketLaunchIcon className="w-12 h-12 text-cyan-400" />;
+            default: return null;
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center z-50 animate-fade-in" onClick={onClose}>
+            <div className="bg-gray-900 border border-yellow-500 rounded-2xl w-11/12 max-w-sm p-8 text-center shadow-lg shadow-yellow-500/20 flex flex-col items-center" onClick={e => e.stopPropagation()}>
+                <GiftIcon className="w-24 h-24 text-yellow-400 mb-4" />
+                <h2 className="text-2xl font-bold text-white mb-2">Daily Gift!</h2>
+                <p className="text-gray-400 mb-6">You've received a special reward!</p>
+                <div className="bg-gray-800 rounded-lg p-4 w-full flex flex-col items-center gap-2 mb-6">
+                    {getRewardIcon()}
+                    <p className="text-xl font-bold text-white">{reward.label}</p>
+                </div>
+                <button
+                    onClick={onClose}
+                    className="w-full bg-yellow-500 text-black font-bold py-3 px-4 rounded-lg transition-transform duration-200 hover:scale-105"
+                >
+                    Awesome!
+                </button>
+            </div>
+        </div>
+    );
+};
+
 const EarnModal: React.FC<{
     isOpen: boolean;
     onClose: () => void;
@@ -191,9 +274,15 @@ const EarnModal: React.FC<{
     score: number;
     claimedTasks: TaskId[];
     onClaimTask: (taskId: TaskId) => void;
+    isSpinAvailable: boolean;
+    onSpin: () => void;
+    isSpinning: boolean;
+    wheelRotation: number;
+    showAdAndDo: (action: () => void) => void;
 }> = ({
     isOpen, onClose, isDailyRewardAvailable, onClaimDailyReward, tasks,
-    totalTaps, friends, score, claimedTasks, onClaimTask
+    totalTaps, friends, score, claimedTasks, onClaimTask,
+    isSpinAvailable, onSpin, isSpinning, wheelRotation, showAdAndDo
 }) => {
     if (!isOpen) return null;
 
@@ -203,6 +292,38 @@ const EarnModal: React.FC<{
                 <h2 className="text-3xl font-bold text-white mb-6 flex-shrink-0">Earn Coins</h2>
 
                 <div className="overflow-y-auto pr-2 space-y-6">
+                    {/* Daily Spin Section */}
+                    <div className={`bg-gray-800 p-4 rounded-lg ${isSpinAvailable ? 'animate-pulse-glow' : ''}`}>
+                        <div className="flex items-center gap-4 mb-2">
+                            <div className="bg-purple-400/20 p-3 rounded-full">
+                                <StarIcon className="w-8 h-8 text-purple-400" />
+                            </div>
+                            <div>
+                                <h3 className="font-bold text-lg text-left">Daily Spin</h3>
+                                <p className="text-sm text-gray-400 text-left">{isSpinAvailable ? "Feeling lucky? Spin the wheel!" : "Come back tomorrow for another spin."}</p>
+                            </div>
+                        </div>
+                        <div className="wheel-container">
+                            <div className="wheel-pointer"></div>
+                            <div className="wheel-center"></div>
+                            <div className="wheel" style={{ transform: `rotate(${wheelRotation}deg)` }}></div>
+                            {WHEEL_REWARDS.map((reward, index) => {
+                                const angle = (index * 45) + (45 / 2); // Center the label in the segment
+                                const radius = 95;
+                                const x = 125 + radius * Math.cos(angle * Math.PI / 180);
+                                const y = 125 + radius * Math.sin(angle * Math.PI / 180);
+                                return <div key={index} className="wheel-label" style={{ left: `${x}px`, top: `${y}px` }}>{reward.label}</div>
+                            })}
+                        </div>
+                        <button
+                            onClick={() => showAdAndDo(onSpin)}
+                            disabled={!isSpinAvailable || isSpinning}
+                            className="w-full bg-purple-500 text-white font-bold py-2.5 px-4 rounded-lg transition-transform duration-200 hover:scale-105 disabled:bg-gray-600 disabled:text-gray-400 disabled:cursor-not-allowed disabled:transform-none"
+                        >
+                            {isSpinning ? 'Spinning...' : 'Spin'}
+                        </button>
+                    </div>
+
                     {/* Daily Reward Section */}
                     <div className={`bg-gray-800 p-4 rounded-lg ${isDailyRewardAvailable ? 'animate-pulse-glow' : ''}`}>
                         <div className="flex items-center gap-4 mb-4">
@@ -221,7 +342,7 @@ const EarnModal: React.FC<{
                                     <p className="font-semibold text-cyan-300 mt-2 flex items-center gap-2"><EnergyIcon className="w-5 h-5"/> Full Energy Refill</p>
                                 </div>
                                 <button
-                                    onClick={onClaimDailyReward}
+                                    onClick={() => showAdAndDo(onClaimDailyReward)}
                                     className="w-full bg-yellow-500 text-black font-bold py-2.5 px-4 rounded-lg transition-transform duration-200 hover:scale-105"
                                 >
                                     Claim Reward
@@ -265,7 +386,7 @@ const EarnModal: React.FC<{
                                             </div>
                                         </div>
                                         <button
-                                            onClick={() => onClaimTask(task.id)}
+                                            onClick={() => showAdAndDo(() => onClaimTask(task.id))}
                                             disabled={!isCompleted || isClaimed}
                                             className={`font-bold py-2 px-3 rounded-lg text-sm transition-colors duration-200 w-28 flex-shrink-0 flex items-center justify-center gap-1 ${
                                                 isClaimed 
@@ -306,10 +427,13 @@ const UpgradesModal: React.FC<{
     energyUpgradeCost: number;
     onUpgradeTap: () => void;
     onUpgradeEnergy: () => void;
+    onPurchaseWithTon: () => void;
+    showAdAndDo: (action: () => void) => void;
 }> = ({ 
     isOpen, onClose, onPurchaseBoost, score,
     tapLevel, energyLevel, tapValue, maxEnergy,
-    tapUpgradeCost, energyUpgradeCost, onUpgradeTap, onUpgradeEnergy
+    tapUpgradeCost, energyUpgradeCost, onUpgradeTap, onUpgradeEnergy,
+    onPurchaseWithTon, showAdAndDo
 }) => {
     if (!isOpen) return null;
 
@@ -332,7 +456,7 @@ const UpgradesModal: React.FC<{
                                     </div>
                                 </div>
                                 <button
-                                    onClick={onUpgradeTap}
+                                    onClick={() => showAdAndDo(onUpgradeTap)}
                                     disabled={score < tapUpgradeCost}
                                     className="bg-purple-600 text-white font-bold py-2 px-3 rounded-lg text-sm transition-colors duration-200 flex items-center gap-2 disabled:bg-gray-600 disabled:text-gray-400 disabled:cursor-not-allowed hover:bg-purple-700"
                                 >
@@ -350,7 +474,7 @@ const UpgradesModal: React.FC<{
                                     </div>
                                 </div>
                                 <button
-                                    onClick={onUpgradeEnergy}
+                                    onClick={() => showAdAndDo(onUpgradeEnergy)}
                                     disabled={score < energyUpgradeCost}
                                     className="bg-purple-600 text-white font-bold py-2 px-3 rounded-lg text-sm transition-colors duration-200 flex items-center gap-2 disabled:bg-gray-600 disabled:text-gray-400 disabled:cursor-not-allowed hover:bg-purple-700"
                                 >
@@ -378,7 +502,7 @@ const UpgradesModal: React.FC<{
                                             </div>
                                         </div>
                                         <button
-                                            onClick={() => onPurchaseBoost(boost)}
+                                            onClick={() => showAdAndDo(() => onPurchaseBoost(boost))}
                                             disabled={!hasEnoughScore}
                                             className="bg-cyan-500 text-white font-bold py-2 px-4 rounded-lg transition-colors duration-200 text-sm disabled:bg-gray-600 disabled:text-gray-400 disabled:cursor-not-allowed hover:bg-cyan-600"
                                         >
@@ -387,6 +511,26 @@ const UpgradesModal: React.FC<{
                                     </div>
                                 )
                             })}
+                        </div>
+                    </div>
+                     {/* TON Specials */}
+                    <div className="bg-gray-800 p-4 rounded-lg border border-green-500/50">
+                        <h3 className="font-bold text-lg text-left mb-4 text-green-300">TON Specials</h3>
+                        <div className="bg-gray-700 p-3 rounded-lg flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-3">
+                                <div className="bg-gray-600 p-2 rounded-full"><AutoMineIcon className="w-7 h-7 text-green-400" /></div>
+                                <div>
+                                    <p className="font-bold">Super Auto Miner</p>
+                                    <p className="text-sm text-gray-400">Mine automatically for 24 hours!</p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={onPurchaseWithTon}
+                                className="bg-green-600 text-white font-bold py-2 px-3 rounded-lg text-sm transition-colors duration-200 flex items-center gap-2 hover:bg-green-700 animate-pulse-glow-green"
+                            >
+                                <WalletIcon className="w-5 h-5"/>
+                                <span>Buy with TON</span>
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -463,6 +607,48 @@ const LeagueDisplay: React.FC<{ score: number }> = ({ score }) => {
     );
 };
 
+const StreakRewardsDisplay: React.FC<{
+    currentStreak: number;
+    onClaimReward: (milestone: number) => void;
+    claimedMilestones: number[];
+}> = ({ currentStreak, onClaimReward, claimedMilestones }) => {
+    return (
+        <div className="flex justify-center items-center gap-2 w-full my-4">
+            {Object.entries(STREAK_REWARDS).map(([milestoneStr, reward]) => {
+                const milestone = parseInt(milestoneStr, 10);
+                const isClaimed = claimedMilestones.includes(milestone);
+                const isReachable = currentStreak >= milestone;
+                const isClaimable = isReachable && !isClaimed;
+
+                return (
+                    <button
+                        key={milestone}
+                        onClick={() => onClaimReward(milestone)}
+                        disabled={!isReachable || isClaimed}
+                        className={`flex flex-col items-center justify-center p-2 rounded-lg w-16 h-20 text-xs font-bold transition-all duration-200 border-2 ${
+                            isClaimed
+                                ? 'bg-gray-700 border-gray-600 text-gray-400 cursor-not-allowed'
+                                : isReachable
+                                ? 'bg-cyan-500/20 border-cyan-500 text-white'
+                                : 'bg-gray-800 border-gray-700 text-gray-500 cursor-not-allowed'
+                        } ${isClaimable ? 'animate-pulse-glow-cyan' : ''}`}
+                    >
+                        {isClaimed ? (
+                             <CheckBadgeIcon className="w-6 h-6 mb-1 text-green-400" />
+                        ) : (
+                            <span className="text-xl">🔥</span>
+                        )}
+                        <span className="text-sm font-bold">{milestone}</span>
+                        {!isClaimed && (
+                             <span className="text-yellow-400 mt-1">+{reward.toLocaleString()}</span>
+                        )}
+                    </button>
+                );
+            })}
+        </div>
+    );
+};
+
 const TapView: React.FC<{
     activeBoosts: ActiveBoosts;
     handleTap: (e: React.MouseEvent<HTMLButtonElement>) => void;
@@ -470,21 +656,61 @@ const TapView: React.FC<{
     maxEnergy: number;
     handleRefillEnergy: () => void;
     score: number;
-}> = ({ activeBoosts, handleTap, energy, maxEnergy, handleRefillEnergy, score }) => {
+    tapStreak: number;
+    isGiftBoxAvailable: boolean;
+    onOpenGiftBox: () => void;
+    claimedStreakMilestones: number[];
+    onClaimStreakReward: (milestone: number) => void;
+}> = ({ activeBoosts, handleTap, energy, maxEnergy, handleRefillEnergy, score, tapStreak, isGiftBoxAvailable, onOpenGiftBox, claimedStreakMilestones, onClaimStreakReward }) => {
     const energyPercentage = (energy / maxEnergy) * 100;
     const energyRefillCost = Math.floor(maxEnergy / 2);
+    const [isTapped, setIsTapped] = useState(false);
+
     const isTurboActive = useMemo(() => {
         const turbo = activeBoosts.turbo_tap;
         return !!turbo && turbo.endTime > Date.now();
     }, [activeBoosts.turbo_tap]);
 
+    const onCoinTap = (e: React.MouseEvent<HTMLButtonElement>) => {
+        handleTap(e);
+        if (energy >= ENERGY_PER_TAP) { // Only animate if tap is successful
+          setIsTapped(true);
+          setTimeout(() => setIsTapped(false), 100);
+        }
+    };
+
+
     return (
-        <div className="relative flex flex-col items-center justify-between h-full w-full">
+        <div className="relative flex flex-col items-center justify-between h-full w-full animate-fade-in">
             <ActiveBoostsDisplay activeBoosts={activeBoosts} />
+            
+            <div className="absolute top-4 right-4 z-10">
+                <button
+                    onClick={onOpenGiftBox}
+                    disabled={!isGiftBoxAvailable}
+                    className={`w-16 h-16 rounded-full flex items-center justify-center transition-all duration-300 transform hover:scale-110 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none ${
+                        isGiftBoxAvailable
+                            ? 'bg-yellow-500 animate-pulse-glow'
+                            : 'bg-gray-700'
+                    }`}
+                    aria-label="Open daily gift box"
+                >
+                    <GiftIcon className={`w-9 h-9 ${isGiftBoxAvailable ? 'text-black' : 'text-gray-400'}`} />
+                </button>
+            </div>
+
+            {/* Streak Counter */}
+            <div className={`absolute top-0 z-10 transition-all duration-300 ease-in-out ${tapStreak > 1 ? 'opacity-100 scale-100' : 'opacity-0 scale-90 pointer-events-none'}`}>
+                <div className="bg-black/50 backdrop-blur-sm text-white px-4 py-2 rounded-full flex items-center gap-2 text-lg font-bold border border-orange-500/50 shadow-lg animate-pulse-glow">
+                    <span className="text-orange-400 text-2xl">🔥</span>
+                    <span>{tapStreak}</span>
+                </div>
+            </div>
+
             <main className="flex flex-col items-center gap-2 flex-grow justify-center">
                 <button
-                    onClick={handleTap}
-                    className={`w-64 h-64 md:w-80 md:h-80 rounded-full bg-gradient-to-br from-yellow-300 via-yellow-500 to-orange-600 active:scale-95 transition-transform duration-75 ease-in-out flex items-center justify-center focus:outline-none border-4 border-yellow-700/80 relative ${
+                    onClick={onCoinTap}
+                    className={`w-64 h-64 md:w-80 md:h-80 rounded-full bg-gradient-to-br from-yellow-300 via-yellow-500 to-orange-600 flex items-center justify-center focus:outline-none border-4 border-yellow-700/80 relative ${isTapped ? 'animate-coin-tap' : ''} ${
                         isTurboActive 
                             ? 'animate-pulse-glow-turbo' 
                             : 'shadow-[0_0_60px_rgba(253,249,156,0.6)]'
@@ -498,6 +724,11 @@ const TapView: React.FC<{
             </main>
 
             <footer className="w-full flex flex-col items-center gap-2">
+                <StreakRewardsDisplay
+                    currentStreak={tapStreak}
+                    onClaimReward={onClaimStreakReward}
+                    claimedMilestones={claimedStreakMilestones}
+                />
                 <div className="flex items-center justify-between w-full">
                     <div className="flex items-center gap-2 text-xl font-semibold">
                         <EnergyIcon className="w-6 h-6 text-yellow-400"/>
@@ -515,7 +746,7 @@ const TapView: React.FC<{
                 </div>
                 <div className="w-full bg-black/30 rounded-full h-4 border border-gray-700 overflow-hidden shadow-inner shadow-black/50">
                     <div 
-                        className="bg-gradient-to-r from-yellow-400 to-orange-500 h-full rounded-full transition-all duration-300 ease-linear animate-pulse-glow"
+                        className="bg-gradient-to-r from-yellow-400 to-orange-500 h-full rounded-full transition-all duration-500 ease-out animate-pulse-glow"
                         style={{ width: `${energyPercentage}%` }}
                     ></div>
                 </div>
@@ -526,600 +757,764 @@ const TapView: React.FC<{
 
 const FriendsView: React.FC<{
     friends: Friend[];
-    onAddFriend: (name: string) => void;
-    inviteCode: string;
-    hasUsedReferral: boolean;
-    onClaimReferral: (code: string) => void;
-    showNotification: (message: string) => void;
-}> = ({ friends, onAddFriend, inviteCode, hasUsedReferral, onClaimReferral, showNotification }) => {
-    const [newFrenName, setNewFrenName] = useState('');
-    const [referralCodeInput, setReferralCodeInput] = useState('');
-
-    const handleAdd = () => {
-        if (newFrenName.trim()) {
-            onAddFriend(newFrenName.trim());
-            setNewFrenName('');
-        }
-    };
-    
-    const handleCopyCode = () => {
-        navigator.clipboard.writeText(inviteCode);
-        showNotification("Invite code copied!");
-    };
-    
-    const handleClaim = () => {
-        if (referralCodeInput.trim()) {
-            onClaimReferral(referralCodeInput.trim());
-            setReferralCodeInput('');
-        }
-    };
-
+    referralCode: string;
+    onCopyReferralCode: () => void;
+    onClaimInvite: () => void;
+    inviteCodeInput: string;
+    setInviteCodeInput: (value: string) => void;
+    tasks: Task[];
+    totalTaps: number;
+    score: number;
+    claimedTasks: TaskId[];
+    onClaimTask: (taskId: TaskId) => void;
+    showAdAndDo: (action: () => void) => void;
+}> = ({ friends, referralCode, onCopyReferralCode, onClaimInvite, inviteCodeInput, setInviteCodeInput, tasks, totalTaps, score, claimedTasks, onClaimTask, showAdAndDo }) => {
     return (
-        <div className="w-full flex flex-col h-full pt-4 flex-grow">
-            <div className="bg-gray-800 p-4 rounded-lg mb-4">
-                <h3 className="font-bold text-lg text-center mb-2">Invite Frens & Earn</h3>
-                <p className="text-center text-sm text-gray-400 mb-4">You get {INVITE_BONUS.toLocaleString()} coins for each invite!</p>
-                <div className="flex gap-2">
-                    <input
-                        type="text"
-                        value={inviteCode}
-                        readOnly
-                        className="flex-grow bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white font-mono text-center cursor-not-allowed"
-                    />
-                    <button
-                        onClick={handleCopyCode}
-                        className="bg-cyan-500 text-white font-bold py-2 px-3 rounded-lg transition-colors duration-200 hover:bg-cyan-600 flex items-center justify-center"
-                        aria-label="Copy Invite Code"
-                    >
-                        <ClipboardIcon className="w-6 h-6" />
-                    </button>
-                </div>
-            </div>
-            
-             <div className="bg-gray-800 p-4 rounded-lg mb-4">
-                <h3 className="font-bold text-lg text-center mb-2">Got an Invite?</h3>
-                 {hasUsedReferral ? (
-                    <div className="flex items-center justify-center gap-2 text-center text-green-400 font-semibold py-2">
-                        <CheckBadgeIcon className="w-6 h-6" />
-                        <span>Referral bonus claimed!</span>
+        <div className="flex flex-col items-center justify-start h-full w-full text-white p-4 pt-2 animate-fade-in overflow-y-auto">
+            <div className="w-full max-w-sm space-y-6">
+                {/* Invite Frens & Earn card */}
+                <div className="w-full bg-gray-800/50 backdrop-blur-sm rounded-xl p-4 border border-gray-700">
+                    <h3 className="text-xl font-bold text-center mb-1">Invite Frens & Earn</h3>
+                    <p className="text-sm text-gray-400 text-center mb-4">You get {INVITE_BONUS.toLocaleString()} coins for each invite!</p>
+                    <div className="flex items-center gap-2 bg-gray-900/50 p-2 rounded-lg">
+                        <span className="flex-grow text-center font-mono text-lg">{referralCode}</span>
+                        <button onClick={onCopyReferralCode} className="bg-cyan-500 text-white p-3 rounded-lg hover:bg-cyan-600 transition-colors duration-200" aria-label="Copy referral code">
+                            <ClipboardIcon className="w-6 h-6"/>
+                        </button>
                     </div>
-                 ) : (
-                    <div className="flex gap-2">
+                </div>
+
+                {/* Got an Invite? card */}
+                <div className="w-full bg-gray-800/50 backdrop-blur-sm rounded-xl p-4 border border-gray-700">
+                    <h3 className="text-xl font-bold text-center mb-3">Got an Invite?</h3>
+                    <div className="flex items-center gap-2">
                         <input
                             type="text"
-                            value={referralCodeInput}
-                            onChange={(e) => setReferralCodeInput(e.target.value)}
+                            value={inviteCodeInput}
+                            onChange={(e) => setInviteCodeInput(e.target.value)}
                             placeholder="Enter friend's code"
-                            className="flex-grow bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                            className="w-full bg-gray-900/50 border border-gray-600 rounded-lg p-3 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-cyan-500"
                         />
-                        <button
-                            onClick={handleClaim}
-                            className="bg-green-500 text-white font-bold py-2 px-4 rounded-lg transition-colors duration-200 hover:bg-green-600"
-                        >
+                        <button onClick={onClaimInvite} className="bg-green-500 text-white font-bold py-3 px-6 rounded-lg hover:bg-green-600 transition-colors duration-200">
                             Claim
                         </button>
                     </div>
-                 )}
-            </div>
+                </div>
+                
+                {/* Referral Tasks Section */}
+                <div className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-4 border border-gray-700">
+                     <h3 className="text-xl font-bold text-center mb-4">Referral Tasks</h3>
+                    <div className="space-y-3">
+                        {tasks.map(task => {
+                            const progress = task.getProgress({ totalTaps, friends, score });
+                            const isCompleted = progress >= task.goal;
+                            const isClaimed = claimedTasks.includes(task.id);
+                            const progressPercentage = Math.min((progress / task.goal) * 100, 100);
 
-            <div className="space-y-3 overflow-y-auto pr-2 flex-grow">
-                {friends.length > 0 ? (
-                    friends
-                        .sort((a, b) => b.score - a.score)
-                        .map((friend, index) => {
-                            const { currentLeague } = getLeagueInfo(friend.score);
                             return (
-                                <div key={friend.id} className="bg-gray-800 p-3 rounded-lg flex items-center justify-between">
-                                    <div className="flex items-center gap-3">
-                                        <span className="text-lg font-bold text-gray-500 w-6 text-center">{index + 1}</span>
-                                        <img src={friend.avatar} alt={friend.name} className="w-12 h-12 rounded-full border-2 border-gray-600" />
-                                        <div>
-                                            <h3 className="font-bold text-md">{friend.name}</h3>
-                                            <div className="flex items-center gap-1.5 text-sm text-gray-400">
-                                                <span>{currentLeague.icon}</span>
-                                                <span>{currentLeague.name} &bull; {friend.score.toLocaleString()}</span>
+                                <div key={task.id} className="bg-gray-700 p-3 rounded-lg flex items-center justify-between gap-2">
+                                    <div className="flex items-center gap-3 flex-grow">
+                                        <task.icon className="w-8 h-8 text-gray-300 flex-shrink-0" />
+                                        <div className="flex-grow">
+                                            <p className="font-semibold text-sm">{task.title}</p>
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-full bg-gray-600 rounded-full h-2 flex-grow">
+                                                    <div className="bg-green-500 h-2 rounded-full" style={{ width: `${progressPercentage}%` }}></div>
+                                                </div>
+                                                <span className="text-xs text-gray-400 font-mono">{Math.floor(progress).toLocaleString()}/{task.goal.toLocaleString()}</span>
                                             </div>
                                         </div>
                                     </div>
+                                    <button
+                                        onClick={() => showAdAndDo(() => onClaimTask(task.id))}
+                                        disabled={!isCompleted || isClaimed}
+                                        className={`font-bold py-2 px-3 rounded-lg text-sm transition-colors duration-200 w-28 flex-shrink-0 flex items-center justify-center gap-1 ${
+                                            isClaimed 
+                                                ? 'bg-gray-600 text-gray-400 cursor-not-allowed' 
+                                                : isCompleted 
+                                                    ? 'bg-green-500 hover:bg-green-600 text-white animate-pulse-glow-green'
+                                                    : 'bg-gray-500 text-gray-300 cursor-not-allowed'
+                                        }`}
+                                    >
+                                        {isClaimed ? (
+                                            <><CheckBadgeIcon className="w-5 h-5"/> Claimed</>
+                                        ) : (
+                                            `+${task.reward.toLocaleString()}`
+                                        )}
+                                    </button>
                                 </div>
-                            )
-                        })
-                ) : (
-                    <div className="flex items-center justify-center h-full">
-                         <p className="text-center text-gray-500 py-8">Invite your first fren to start building your squad!</p>
+                            );
+                        })}
                     </div>
-                )}
+                </div>
+            </div>
+            
+            {/* Friends list */}
+            <div className="w-full max-w-sm bg-gray-800/50 backdrop-blur-sm rounded-xl p-4 border border-gray-700 mt-6">
+                <h3 className="text-lg font-bold mb-3">Your Squad ({friends.length})</h3>
+                <div className="space-y-2">
+                    {friends.length > 0 ? friends.map(friend => (
+                        <div key={friend.id} className="bg-gray-700 p-2.5 rounded-lg flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <img src={friend.avatar} alt={friend.name} className="w-10 h-10 rounded-full" />
+                                <div>
+                                    <p className="font-semibold">{friend.name}</p>
+                                    <p className="text-xs text-gray-400">{friend.score.toLocaleString()} points</p>
+                                </div>
+                            </div>
+                            <span className="text-yellow-400 font-bold">+{INVITE_BONUS.toLocaleString()}</span>
+                        </div>
+                    )) : (
+                        <p className="text-gray-500 text-center py-4">Your squad is empty. Invite your first fren!</p>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const WalletView: React.FC<{
+    score: number;
+    adsViewed: number;
+    referrals: number;
+    timeSpent: number;
+    tonPurchases: number;
+}> = ({ score, adsViewed, referrals, timeSpent, tonPurchases }) => {
+    const AIRDROP_POOL = 17_000_000;
+    const TEAM_POOL = 4_000_000;
+    const TOTAL_SUPPLY = 21_000_000;
+    // This is a fictional number representing the estimated total shares of all users in the future
+    // over a 10-year period. It's used to give the user a rough estimate of their potential reward.
+    const ESTIMATED_TOTAL_COMMUNITY_SHARES = 50_000_000_000_000;
+
+    // Define weights for each factor contributing to the airdrop
+    const WEIGHTS = {
+        SCORE: 1,
+        REFERRAL: 10000, // Each friend is worth 10,000 points
+        AD_VIEW: 500,     // Each ad view is worth 500 points
+        TIME_SPENT: 1/10, // 1 share point for every 10 seconds
+        TON_PURCHASE: 100000 // Each TON purchase is worth 100,000 points
+    };
+
+    const scoreShares = score * WEIGHTS.SCORE;
+    const referralShares = referrals * WEIGHTS.REFERRAL;
+    const adShares = adsViewed * WEIGHTS.AD_VIEW;
+    const timeShares = Math.floor(timeSpent * WEIGHTS.TIME_SPENT);
+    const purchaseShares = tonPurchases * WEIGHTS.TON_PURCHASE;
+
+    const totalUserShares = scoreShares + referralShares + adShares + timeShares + purchaseShares;
+
+    const estimatedTokens = (totalUserShares / ESTIMATED_TOTAL_COMMUNITY_SHARES) * AIRDROP_POOL;
+    
+    const formatTime = (seconds: number) => {
+        const h = Math.floor(seconds / 3600);
+        const m = Math.floor((seconds % 3600) / 60);
+        return `${h}h ${m}m`;
+    };
+
+    return (
+        <div className="flex flex-col items-center justify-start h-full w-full text-white p-4 pt-2 animate-fade-in overflow-y-auto">
+            <div className="w-full max-w-sm">
+                <h2 className="text-3xl font-bold mb-2 text-center">Wallet</h2>
+                <p className="text-gray-400 mb-6 text-center">Your in-game assets and token information.</p>
+
+                <div className="w-full bg-gray-800 rounded-xl p-6 space-y-4 border border-gray-700 shadow-lg shadow-yellow-500/10 mb-6">
+                    <div className="flex justify-between items-center">
+                        <span className="font-semibold text-gray-300">Your Balance</span>
+                        <div className="flex items-center gap-2 text-2xl font-bold text-yellow-400">
+                            <EnergyIcon className="w-6 h-6" />
+                            <span>{Math.floor(score).toLocaleString()}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="w-full bg-gray-800 rounded-xl p-6 space-y-3 border border-cyan-500/50 shadow-lg shadow-cyan-500/10 mb-6">
+                    <h3 className="font-bold text-cyan-300 text-left text-xl flex items-center gap-2 mb-4">
+                        <GiftIcon className="w-6 h-6"/>
+                        <span>Airdrop Estimation</span>
+                    </h3>
+                    
+                    <div className="bg-gray-900/50 p-4 rounded-lg text-center">
+                        <p className="text-gray-400 text-sm">You will receive an estimated</p>
+                        <p className="text-3xl font-bold text-white my-2">{estimatedTokens.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ELZR</p>
+                        <p className="text-gray-500 text-xs">Based on your {totalUserShares.toLocaleString()} shares</p>
+                    </div>
+
+                    <div className="!my-4 border-t border-gray-700"></div>
+
+                    <p className="text-sm text-gray-400">Your total shares are calculated based on:</p>
+                    <div className="text-left text-sm space-y-2 text-gray-300">
+                        <div className="flex justify-between items-center bg-gray-700/50 p-2 rounded-md"><span>Score ({score.toLocaleString()})</span><span className="font-bold text-white font-mono">{scoreShares.toLocaleString()} shares</span></div>
+                        <div className="flex justify-between items-center bg-gray-700/50 p-2 rounded-md"><span>Referrals ({referrals})</span><span className="font-bold text-white font-mono">{referralShares.toLocaleString()} shares</span></div>
+                        <div className="flex justify-between items-center bg-gray-700/50 p-2 rounded-md"><span>Ads Viewed ({adsViewed})</span><span className="font-bold text-white font-mono">{adShares.toLocaleString()} shares</span></div>
+                        <div className="flex justify-between items-center bg-gray-700/50 p-2 rounded-md"><span>Time Spent ({formatTime(timeSpent)})</span><span className="font-bold text-white font-mono">{timeShares.toLocaleString()} shares</span></div>
+                        <div className="flex justify-between items-center bg-gray-700/50 p-2 rounded-md"><span>TON Purchases ({tonPurchases})</span><span className="font-bold text-white font-mono">{purchaseShares.toLocaleString()} shares</span></div>
+                    </div>
+
+                    <p className="text-center mt-4 text-xs text-gray-500">This is an estimate. The airdrop pool will be distributed over 10 years. Your final amount depends on your activity relative to the entire community's participation.</p>
+                </div>
+
+                <div className="w-full bg-gray-800 rounded-xl p-6 space-y-4 border border-gray-700">
+                    <h3 className="font-semibold text-cyan-300 text-left mb-3 flex items-center gap-2"><StarIcon className="w-5 h-5" /><span>Eliezer (ELZR) Tokenomics</span></h3>
+                    <div className="text-left text-sm space-y-2 text-gray-400">
+                        <div className="flex justify-between items-center bg-gray-900/50 p-2 rounded-md"><span>Total Supply:</span><span className="font-bold text-white font-mono">{TOTAL_SUPPLY.toLocaleString()} ELZR</span></div>
+                        <div className="flex justify-between items-center bg-gray-900/50 p-2 rounded-md"><span>Airdrop Pool:</span><span className="font-bold text-white font-mono">{AIRDROP_POOL.toLocaleString()} ELZR</span></div>
+                        <div className="flex justify-between items-center bg-gray-900/50 p-2 rounded-md"><span>Team & Development:</span><span className="font-bold text-white font-mono">{TEAM_POOL.toLocaleString()} ELZR</span></div>
+                        <div className="flex justify-between items-center bg-gray-900/50 p-2 rounded-md"><span>Generation Date:</span><span className="font-bold text-white font-mono">11.07.2025</span></div>
+                        <div className="flex justify-between items-center bg-gray-900/50 p-2 rounded-md"><span>Blockchain:</span><span className="font-bold text-white font-mono">TON Network</span></div>
+                    </div>
+                </div>
+                
+                 <div className="text-center mt-6 text-xs text-gray-500">
+                    <p>Connect a real TON wallet for future airdrops.</p>
+                </div>
             </div>
         </div>
     );
 };
 
 
-const BottomNavBar: React.FC<{
-    activeView: 'tap' | 'frens';
-    setActiveView: (view: 'tap' | 'frens') => void;
-    onBoostClick: () => void;
-    isAnythingToClaim: boolean;
-    onEarnClick: () => void;
-}> = ({ activeView, setActiveView, onBoostClick, isAnythingToClaim, onEarnClick }) => (
-    <div className="fixed bottom-0 left-0 right-0 bg-gray-900/50 backdrop-blur-lg border-t border-gray-700">
-        <div className="flex justify-around items-center max-w-lg mx-auto h-20">
-            <button onClick={() => setActiveView('tap')} className={`flex flex-col items-center gap-1 ${activeView === 'tap' ? 'text-cyan-400' : 'text-gray-400 hover:text-white'} transition-colors duration-200`}>
-                <div className={`p-3 rounded-lg ${activeView === 'tap' ? 'bg-cyan-400/20' : ''}`}>
-                    <MineIcon className="w-7 h-7" />
-                </div>
-                <span className="text-xs font-bold">Tap</span>
-            </button>
-            <button onClick={onBoostClick} className="flex flex-col items-center gap-1 text-gray-400 hover:text-white transition-colors duration-200">
-                <BoostIcon className="w-7 h-7" />
-                <span className="text-xs font-bold">Boost</span>
-            </button>
-            <button
-                onClick={onEarnClick}
-                className={`relative flex flex-col items-center gap-1 ${isAnythingToClaim ? 'text-yellow-400' : 'text-gray-400'} transition-colors duration-200`}
-            >
-                 {isAnythingToClaim && (
-                    <span className="absolute -top-0.5 right-3.5 flex h-3 w-3 z-10">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-yellow-400 opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-3 w-3 bg-yellow-500"></span>
-                    </span>
-                )}
-                <div className={`p-3 rounded-lg ${isAnythingToClaim ? 'bg-yellow-400/20 animate-pulse-glow' : ''}`}>
-                    <EarnIcon className="w-7 h-7" />
-                </div>
-                <span className="text-xs font-bold">Earn</span>
-            </button>
-            <button onClick={() => setActiveView('frens')} className={`flex flex-col items-center gap-1 ${activeView === 'frens' ? 'text-cyan-400' : 'text-gray-400 hover:text-white'} transition-colors duration-200`}>
-                <div className={`p-3 rounded-lg ${activeView === 'frens' ? 'bg-cyan-400/20' : ''}`}>
-                    <FriendsIcon className="w-7 h-7" />
-                </div>
-                <span className="text-xs font-bold">Frens</span>
-            </button>
-        </div>
-    </div>
-);
+const App: React.FC = () => {
+    const [score, setScore] = useState(0);
+    const [energy, setEnergy] = useState(1000);
+    const [tapAnimations, setTapAnimations] = useState<TapAnimation[]>([]);
+    const [activeBoosts, setActiveBoosts] = useState<ActiveBoosts>({});
+    const [tapStreak, setTapStreak] = useState(0);
+    const [streakTimeoutId, setStreakTimeoutId] = useState<number | null>(null);
+    const [isScoreAnimating, setIsScoreAnimating] = useState(false);
+    const scoreRef = useRef(score);
 
-const LoadingScreen: React.FC = () => (
-    <div className="flex flex-col items-center justify-center h-screen w-screen bg-black text-white">
-      <RocketLaunchIcon className="w-24 h-24 text-cyan-400 animate-pulse" />
-      <p className="mt-4 text-xl font-semibold">Initializing...</p>
-    </div>
-);
-  
-const AccessDeniedScreen: React.FC = () => (
-    <div className="flex flex-col items-center justify-center h-screen w-screen bg-black text-white text-center p-8">
-      <img src="https://telegram.org/img/t_logo.svg" alt="Telegram Logo" className="w-24 h-24 mb-6" />
-      <h1 className="text-3xl font-bold mb-2">Access Required</h1>
-      <p className="text-lg text-gray-400">This is a Telegram Mini App.</p>
-      <p className="text-lg text-gray-400">Please open it inside the Telegram app to play.</p>
-    </div>
-);
-
-
-// --- Main App Component ---
-export default function App() {
-  const [telegramUser, setTelegramUser] = useState<TelegramUser | null>(null);
-  const [isInitializing, setIsInitializing] = useState(true);
-
-  const [score, setScore] = useState<number>(0);
-  const [energy, setEnergy] = useState<number>(1000);
-  const [tapAnimations, setTapAnimations] = useState<TapAnimation[]>([]);
-  const [activeBoosts, setActiveBoosts] = useState<ActiveBoosts>({});
-  const [isUpgradesModalOpen, setIsUpgradesModalOpen] = useState(false);
-  const [friends, setFriends] = useState<Friend[]>([]);
-  const [activeView, setActiveView] = useState<'tap' | 'frens'>('tap');
-  const [notification, setNotification] = useState<string | null>(null);
-  const [lastClaimedDate, setLastClaimedDate] = useState<string | null>(null);
-  const [isEarnModalOpen, setIsEarnModalOpen] = useState(false);
-  const [totalTaps, setTotalTaps] = useState<number>(0);
-  const [claimedTasks, setClaimedTasks] = useState<TaskId[]>([]);
-  const [inviteCode, setInviteCode] = useState<string>('');
-  const [hasUsedReferral, setHasUsedReferral] = useState<boolean>(false);
-
-  // Permanent Upgrades State
-  const [tapLevel, setTapLevel] = useState<number>(1);
-  const [energyLevel, setEnergyLevel] = useState<number>(1);
-
-  // Derived state for upgrades
-  const tapValue = useMemo(() => 1 + tapLevel - 1, [tapLevel]);
-  const maxEnergy = useMemo(() => 1000 + (energyLevel - 1) * 500, [energyLevel]);
-  const tapUpgradeCost = useMemo(() => Math.floor(250 * Math.pow(1.25, tapLevel - 1)), [tapLevel]);
-  const energyUpgradeCost = useMemo(() => Math.floor(400 * Math.pow(1.3, energyLevel - 1)), [energyLevel]);
-
-  // Initialize Telegram Web App
-  useEffect(() => {
-    if (window.Telegram && window.Telegram.WebApp) {
-      const tg = window.Telegram.WebApp;
-      tg.ready();
-      tg.expand();
-      
-      if (tg.initDataUnsafe && tg.initDataUnsafe.user) {
-        setTelegramUser(tg.initDataUnsafe.user);
-      }
-    }
-    // Set a timeout to handle cases where the app is not in Telegram
-    // after a short delay, to avoid showing loader indefinitely.
-    const timer = setTimeout(() => {
-        setIsInitializing(false);
-    }, 1500);
-    return () => clearTimeout(timer);
-  }, []);
-
-  // Load state from localStorage, scoped to telegram user ID
-  useEffect(() => {
-    if (!telegramUser) return;
-    const userId = telegramUser.id;
-
-    const savedScore = localStorage.getItem(`tapScore_${userId}`);
-    const savedEnergy = localStorage.getItem(`tapEnergy_${userId}`);
-    const savedFriends = localStorage.getItem(`tapFriends_${userId}`);
-    const savedLastClaimedDate = localStorage.getItem(`tapLastClaimedDate_${userId}`);
-    const savedTotalTaps = localStorage.getItem(`tapTotalTaps_${userId}`);
-    const savedClaimedTasks = localStorage.getItem(`tapClaimedTasks_${userId}`);
-    const savedInviteCode = localStorage.getItem(`tapInviteCode_${userId}`);
-    const savedHasUsedReferral = localStorage.getItem(`tapHasUsedReferral_${userId}`);
-    const savedTapLevel = localStorage.getItem(`tapLevel_${userId}`);
-    const savedEnergyLevel = localStorage.getItem(`tapEnergyLevel_${userId}`);
-
-
-    if (savedScore) setScore(parseInt(savedScore, 10));
-    if (savedEnergy) setEnergy(parseInt(savedEnergy, 10));
-    if (savedFriends) setFriends(JSON.parse(savedFriends));
-    if (savedLastClaimedDate) setLastClaimedDate(savedLastClaimedDate);
-    if (savedTotalTaps) setTotalTaps(parseInt(savedTotalTaps, 10));
-    if (savedClaimedTasks) setClaimedTasks(JSON.parse(savedClaimedTasks));
-    if (savedHasUsedReferral) setHasUsedReferral(savedHasUsedReferral === 'true');
-    if (savedTapLevel) setTapLevel(parseInt(savedTapLevel, 10));
-    if (savedEnergyLevel) setEnergyLevel(parseInt(savedEnergyLevel, 10));
+    const [friends, setFriends] = useState<Friend[]>([]);
     
-    if (savedInviteCode) {
-        setInviteCode(savedInviteCode);
-    } else {
-        const newCode = `TCM-${Math.random().toString(36).substring(2, 9).toUpperCase()}`;
-        setInviteCode(newCode);
-        localStorage.setItem(`tapInviteCode_${userId}`, newCode);
-    }
-  }, [telegramUser]);
+    // Upgrade levels
+    const [tapLevel, setTapLevel] = useState(1);
+    const [energyLevel, setEnergyLevel] = useState(1);
 
-  // Save state to localStorage, scoped to telegram user ID
-  useEffect(() => {
-    if (!telegramUser) return;
-    const userId = telegramUser.id;
-    localStorage.setItem(`tapScore_${userId}`, score.toString());
-    localStorage.setItem(`tapEnergy_${userId}`, energy.toString());
-    localStorage.setItem(`tapFriends_${userId}`, JSON.stringify(friends));
-    if (lastClaimedDate) localStorage.setItem(`tapLastClaimedDate_${userId}`, lastClaimedDate);
-    localStorage.setItem(`tapTotalTaps_${userId}`, totalTaps.toString());
-    localStorage.setItem(`tapClaimedTasks_${userId}`, JSON.stringify(claimedTasks));
-    localStorage.setItem(`tapHasUsedReferral_${userId}`, String(hasUsedReferral));
-    localStorage.setItem(`tapLevel_${userId}`, tapLevel.toString());
-    localStorage.setItem(`tapEnergyLevel_${userId}`, energyLevel.toString());
-  }, [score, energy, friends, lastClaimedDate, totalTaps, claimedTasks, hasUsedReferral, tapLevel, energyLevel, telegramUser]);
+    // Modals
+    const [earnModalOpen, setEarnModalOpen] = useState(false);
+    const [upgradesModalOpen, setUpgradesModalOpen] = useState(false);
+    const [isGiftBoxModalOpen, setIsGiftBoxModalOpen] = useState(false);
+    
+    // Earn tab state
+    const [lastDailyReward, setLastDailyReward] = useState<string | null>(null);
+    const [claimedTasks, setClaimedTasks] = useState<TaskId[]>([]);
+    const [totalTaps, setTotalTaps] = useState(0);
 
+    // Spin Wheel state
+    const [lastSpin, setLastSpin] = useState<string | null>(null);
+    const [isSpinning, setIsSpinning] = useState(false);
+    const [wheelRotation, setWheelRotation] = useState(0);
 
-  const isDailyRewardAvailable = useMemo(() => {
-    const today = new Date().toISOString().split('T')[0];
-    return lastClaimedDate !== today;
-  }, [lastClaimedDate]);
+    // Daily Gift Box state
+    const [lastGiftBoxOpen, setLastGiftBoxOpen] = useState<string | null>(null);
+    const [giftBoxReward, setGiftBoxReward] = useState<GiftBoxReward | null>(null);
 
-  // Energy regeneration
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setEnergy((prevEnergy) => Math.min(maxEnergy, prevEnergy + ENERGY_REGEN_RATE));
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [maxEnergy]);
+    // Streak Rewards state
+    const [claimedStreakMilestones, setClaimedStreakMilestones] = useState<number[]>([]);
+    const [lastStreakClaimDate, setLastStreakClaimDate] = useState<string | null>(null);
 
-  // Active boosts countdown & cleanup
-  useEffect(() => {
-    const interval = setInterval(() => {
-        const now = Date.now();
-        let boostsChanged = false;
-        const newActiveBoosts: ActiveBoosts = {};
-        
-        Object.entries(activeBoosts).forEach(([key, value]) => {
-            if (value && (value as ActiveBoost).endTime > now) {
-                newActiveBoosts[key as BoostId] = value as ActiveBoost;
-            } else {
-                boostsChanged = true;
-            }
-        });
+    // Airdrop calculation state
+    const [adsViewed, setAdsViewed] = useState(0);
+    const [timeSpent, setTimeSpent] = useState(0); // in seconds
+    const [tonPurchases, setTonPurchases] = useState(0);
 
-        if (boostsChanged) {
-            setActiveBoosts(newActiveBoosts);
+    const [activeView, setActiveView] = useState<ActiveView>('tap');
+    const [notification, setNotification] = useState<string | null>(null);
+
+    // Frens state
+    const [referralCode, setReferralCode] = useState('');
+    const [inviteCodeInput, setInviteCodeInput] = useState('');
+
+    // --- Derived State ---
+    const tapValue = useMemo(() => {
+        let baseValue = tapLevel;
+        if (activeBoosts.turbo_tap && activeBoosts.turbo_tap.endTime > Date.now()) baseValue *= 2;
+        if (activeBoosts.multi_tap && activeBoosts.multi_tap.endTime > Date.now()) baseValue *= 5;
+        return baseValue;
+    }, [tapLevel, activeBoosts]);
+    
+    const maxEnergy = useMemo(() => 500 + energyLevel * 500, [energyLevel]);
+    const tapUpgradeCost = useMemo(() => 200 * Math.pow(tapLevel, 2), [tapLevel]);
+    const energyUpgradeCost = useMemo(() => Math.floor(300 * Math.pow(energyLevel, 2.2)), [energyLevel]);
+
+    const isDailyRewardAvailable = useMemo(() => {
+        if (!lastDailyReward) return true;
+        const lastDate = new Date(lastDailyReward);
+        const today = new Date();
+        return lastDate.getFullYear() !== today.getFullYear() ||
+               lastDate.getMonth() !== today.getMonth() ||
+               lastDate.getDate() !== today.getDate();
+    }, [lastDailyReward]);
+
+    const isGiftBoxAvailable = useMemo(() => {
+        if (!lastGiftBoxOpen) return true;
+        const lastDate = new Date(lastGiftBoxOpen);
+        const today = new Date();
+        return lastDate.getFullYear() !== today.getFullYear() ||
+               lastDate.getMonth() !== today.getMonth() ||
+               lastDate.getDate() !== today.getDate();
+    }, [lastGiftBoxOpen]);
+
+    const isSpinAvailable = useMemo(() => {
+        if (!lastSpin) return true;
+        const lastDate = new Date(lastSpin);
+        const today = new Date();
+        return lastDate.getFullYear() !== today.getFullYear() ||
+               lastDate.getMonth() !== today.getMonth() ||
+               lastDate.getDate() !== today.getDate();
+    }, [lastSpin]);
+
+    const earnTasks = useMemo(() => TASKS.filter(task => !task.id.startsWith('invite_')), []);
+    const frensTasks = useMemo(() => TASKS.filter(task => task.id.startsWith('invite_')), []);
+
+    const showNotification = useCallback((message: string, duration: number = 4000) => {
+        setNotification(message);
+        setTimeout(() => setNotification(null), duration);
+    }, []);
+
+    const showAdAndDo = (action: () => void) => {
+        if (window.adsgram && window.adsgram.isAvailable()) {
+            window.adsgram.show('interstitial', (result: { success: boolean }) => {
+                if (result.success) {
+                    setAdsViewed(prev => prev + 1);
+                }
+                action();
+            });
+        } else {
+            // For development/testing purposes when ads aren't available
+            setAdsViewed(prev => prev + 1);
+            action();
         }
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [activeBoosts]);
-
-  // Auto-miner passive income
-  useEffect(() => {
-      let autoMineInterval: number | undefined;
-      const autoMineBoost = activeBoosts.auto_mine;
-
-      if (autoMineBoost && autoMineBoost.endTime > Date.now()) {
-          autoMineInterval = window.setInterval(() => {
-              const currentAutoMineBoost = activeBoosts.auto_mine;
-              if (currentAutoMineBoost && currentAutoMineBoost.endTime > Date.now()) {
-                   setScore(prevScore => prevScore + AUTO_MINE_RATE);
-              } else {
-                  clearInterval(autoMineInterval);
-              }
-          }, 1000);
-      }
-
-      return () => {
-          if (autoMineInterval) {
-              clearInterval(autoMineInterval);
-          }
-      };
-  }, [activeBoosts]);
-
-  const effectiveTapValue = useMemo(() => {
-    let value = tapValue;
-    const now = Date.now();
-    if (activeBoosts.turbo_tap?.endTime > now) {
-        value *= 2;
-    }
-    if (activeBoosts.multi_tap?.endTime > now) {
-        value *= 5;
-    }
-    return value;
-  }, [tapValue, activeBoosts]);
-  
-  const showNotification = useCallback((message: string) => {
-    setNotification(message);
-    setTimeout(() => {
-        setNotification(prev => (prev === message ? null : prev));
-    }, 3000);
-  }, []);
-
-  const handleTap = useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
-    if (energy >= ENERGY_PER_TAP) {
-      playSound(TAP_SOUND_URL);
-      setScore((prevScore) => prevScore + effectiveTapValue);
-      setEnergy((prevEnergy) => prevEnergy - ENERGY_PER_TAP);
-      setTotalTaps(prev => prev + 1);
-      
-      if (window.navigator.vibrate) window.navigator.vibrate(50);
-      
-      const newAnimation: TapAnimation = {
-        id: Date.now() + Math.random(),
-        x: e.clientX,
-        y: e.clientY,
-      };
-
-      setTapAnimations((prev) => [...prev, newAnimation]);
-      setTimeout(() => setTapAnimations((prev) => prev.filter(anim => anim.id !== newAnimation.id)), 1000);
-    }
-  }, [energy, effectiveTapValue]);
-
-  const handlePurchaseBoost = (boost: Boost) => {
-      if (score >= boost.cost) {
-          playSound(PURCHASE_SOUND_URL);
-          setScore(s => s - boost.cost);
-          if (boost.id === 'full_energy') {
-              setEnergy(maxEnergy);
-          } else if (boost.duration) {
-              setActiveBoosts(prev => ({
-                  ...prev,
-                  [boost.id]: { endTime: Date.now() + boost.duration! * 1000 }
-              }));
-          }
-          setIsUpgradesModalOpen(false);
-      }
-  };
-  
-  const handleUpgradeTap = () => {
-    if (score >= tapUpgradeCost) {
-      playSound(PURCHASE_SOUND_URL);
-      setScore(s => s - tapUpgradeCost);
-      setTapLevel(l => l + 1);
-    }
-  };
-
-  const handleUpgradeEnergy = () => {
-    if (score >= energyUpgradeCost) {
-      playSound(PURCHASE_SOUND_URL);
-      setScore(s => s - energyUpgradeCost);
-      setEnergyLevel(l => l + 1);
-    }
-  };
-
-  const handleRefillEnergy = useCallback(() => {
-    const energyRefillCost = Math.floor(maxEnergy / 2);
-    if (score >= energyRefillCost && energy < maxEnergy) {
-        playSound(PURCHASE_SOUND_URL);
-        setScore(s => s - energyRefillCost);
-        setEnergy(maxEnergy);
-    }
-  }, [score, energy, maxEnergy]);
-
-  const handleAddFriend = (name: string) => {
-    const newFriend: Friend = {
-        id: Date.now(),
-        name,
-        score: Math.floor(Math.random() * (score + 5000)),
-        avatar: `https://i.pravatar.cc/80?u=${Date.now()}`
     };
-    setFriends(prev => [...prev, newFriend]);
-    setScore(s => s + INVITE_BONUS);
+
+    // --- Effects ---
+
+    // Score animation effect
+    useEffect(() => {
+        if (score > scoreRef.current) {
+            setIsScoreAnimating(true);
+            const timer = setTimeout(() => setIsScoreAnimating(false), 200); // Animation duration
+            return () => clearTimeout(timer);
+        }
+        scoreRef.current = score;
+    }, [score]);
+
+
+    // Time spent tracking
+    useEffect(() => {
+        const interval = setInterval(() => {
+            setTimeSpent(prev => prev + 1);
+        }, 1000);
+        return () => clearInterval(interval);
+    }, []);
+
+    // Energy regeneration
+    useEffect(() => {
+        const interval = setInterval(() => {
+            setEnergy(prev => Math.min(maxEnergy, prev + ENERGY_REGEN_RATE));
+        }, 1000);
+        return () => clearInterval(interval);
+    }, [maxEnergy]);
+
+    // Auto-miner
+    useEffect(() => {
+        let interval: number | undefined;
+        if (activeBoosts.auto_mine && activeBoosts.auto_mine.endTime > Date.now()) {
+            interval = setInterval(() => {
+                setScore(prev => prev + AUTO_MINE_RATE);
+            }, 1000);
+        }
+        return () => clearInterval(interval);
+    }, [activeBoosts.auto_mine]);
+
+    // Boost timer cleanup
+     useEffect(() => {
+        const interval = setInterval(() => {
+            const now = Date.now();
+            let hasChanged = false;
+            const newBoosts: ActiveBoosts = {};
+            for (const key in activeBoosts) {
+                const boost = activeBoosts[key as BoostId];
+                if (boost && boost.endTime > now) {
+                    newBoosts[key as BoostId] = boost;
+                } else {
+                    hasChanged = true;
+                }
+            }
+            if (hasChanged) {
+                setActiveBoosts(newBoosts);
+            }
+        }, 1000);
+        return () => clearInterval(interval);
+    }, [activeBoosts]);
+
+    // Mock friends data and generate referral code
+    useEffect(() => {
+        setFriends([
+            { id: 1, name: "Alice", score: 12500, avatar: "https://picsum.photos/40/40?random=1" },
+            { id: 2, name: "Bob", score: 8200, avatar: "https://picsum.photos/40/40?random=2" },
+        ]);
+        
+        // Generate a mock referral code on mount
+        setReferralCode('TCM-' + Math.random().toString(36).substr(2, 8).toUpperCase());
+
+    }, []);
     
-    showNotification(`+${INVITE_BONUS.toLocaleString()} for inviting ${name}!`);
-  };
+    // Referral check on app load
+    useEffect(() => {
+        const tg = window.Telegram?.WebApp;
+        if (tg && tg.initDataUnsafe?.start_param) {
+            const startParam = tg.initDataUnsafe.start_param;
+            const bonusAwarded = localStorage.getItem('referralBonusAwarded');
 
-  const handleClaimDailyReward = () => {
-    if (!isDailyRewardAvailable) return;
+            if (startParam.startsWith('ref_') && !bonusAwarded) {
+                setScore(s => s + INVITE_BONUS);
+                showNotification(`Welcome! You got ${INVITE_BONUS.toLocaleString()} bonus coins!`);
+                localStorage.setItem('referralBonusAwarded', 'true');
+            }
+        }
+    }, [showNotification]);
 
-    playSound(CLAIM_SOUND_URL);
-    setScore(s => s + DAILY_REWARD_COINS);
-    setEnergy(maxEnergy);
+    // Daily reset for streak rewards
+    useEffect(() => {
+        const today = new Date().toISOString().split('T')[0];
+        if (lastStreakClaimDate !== today) {
+            setClaimedStreakMilestones([]);
+            setLastStreakClaimDate(today);
+        }
+    }, [lastStreakClaimDate]);
 
-    const today = new Date().toISOString().split('T')[0];
-    setLastClaimedDate(today);
+    const handleTap = useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
+        if (energy >= ENERGY_PER_TAP) {
+            setEnergy(prev => prev - ENERGY_PER_TAP);
+            
+            if (streakTimeoutId) clearTimeout(streakTimeoutId);
+            const newStreak = tapStreak + 1;
+            setTapStreak(newStreak);
+            const newTimeoutId = window.setTimeout(() => setTapStreak(0), STREAK_TIMEOUT);
+            setStreakTimeoutId(newTimeoutId);
 
-    setIsEarnModalOpen(false);
+            const streakBonusMultiplier = STREAK_MILESTONES[newStreak] || 1;
+            const finalTapValue = tapValue * streakBonusMultiplier;
+            const isBonus = streakBonusMultiplier > 1;
 
-    showNotification(`+${DAILY_REWARD_COINS.toLocaleString()} coins & full energy!`);
-  };
-  
-  const handleClaimTask = (taskId: TaskId) => {
-    const task = TASKS.find(t => t.id === taskId);
-    if (!task) return;
+            setScore(prev => prev + finalTapValue);
+            setTotalTaps(prev => prev + 1);
 
-    const progress = task.getProgress({ totalTaps, friends, score });
-    const isCompleted = progress >= task.goal;
-    const isClaimed = claimedTasks.includes(taskId);
+            const rect = e.currentTarget.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
 
-    if (isCompleted && !isClaimed) {
-        playSound(CLAIM_SOUND_URL);
-        setScore(s => s + task.reward);
-        setClaimedTasks(prev => [...prev, taskId]);
-        showNotification(`+${task.reward.toLocaleString()} for completing task!`);
-    }
-  };
-  
-  const handleClaimReferral = (code: string) => {
-    const trimmedCode = code.trim();
+            const newAnimation: TapAnimation = { id: Date.now() + Math.random(), x, y, value: finalTapValue, isBonus };
+            setTapAnimations(prev => [...prev, newAnimation]);
 
-    if (hasUsedReferral) {
-        showNotification("You've already used a referral code.");
-        return;
-    }
+            setTimeout(() => {
+                setTapAnimations(prev => prev.filter(anim => anim.id !== newAnimation.id));
+            }, 1000);
+        }
+    }, [energy, tapValue, tapStreak, streakTimeoutId]);
 
-    if (!trimmedCode) {
-        showNotification("Please enter a referral code.");
-        return;
-    }
+    const handleRefillEnergy = useCallback(() => {
+        const cost = Math.floor(maxEnergy / 2);
+        if (score >= cost && energy < maxEnergy) {
+            setScore(prev => prev - cost);
+            setEnergy(maxEnergy);
+        }
+    }, [score, energy, maxEnergy]);
+
+    const purchaseBoost = (boost: Boost) => {
+        if (score >= boost.cost) {
+            setScore(prev => prev - boost.cost);
+            if (boost.id === 'full_energy') {
+                setEnergy(maxEnergy);
+            } else {
+                 setActiveBoosts(prev => ({
+                    ...prev,
+                    [boost.id]: { endTime: Date.now() + (boost.duration || 0) * 1000 }
+                }));
+            }
+        }
+    };
     
-    if (trimmedCode === inviteCode) {
-        showNotification("You can't use your own code!");
-        return;
-    }
-
-    // In a real app, you'd validate the code against a backend.
-    // For this demo, any non-empty code that isn't the user's own works.
-    playSound(BONUS_SOUND_URL);
-    setScore(s => s + REFERRAL_BONUS);
-    setHasUsedReferral(true);
-    showNotification(`+${REFERRAL_BONUS.toLocaleString()} bonus claimed!`);
-  };
-
-  const isAnythingToClaim = useMemo(() => {
-    if (isDailyRewardAvailable) return true;
-    for (const task of TASKS) {
-        const progress = task.getProgress({ totalTaps, friends, score });
-        if (progress >= task.goal && !claimedTasks.includes(task.id)) {
-            return true;
+    const onUpgradeTap = () => {
+        if (score >= tapUpgradeCost) {
+            setScore(s => s - tapUpgradeCost);
+            setTapLevel(l => l + 1);
         }
     }
-    return false;
-  }, [isDailyRewardAvailable, totalTaps, friends, score, claimedTasks]);
 
-  if (isInitializing) {
-    return <LoadingScreen />;
-  }
+    const onUpgradeEnergy = () => {
+        if (score >= energyUpgradeCost) {
+            setScore(s => s - energyUpgradeCost);
+            setEnergyLevel(l => l + 1);
+        }
+    }
 
-  if (!telegramUser) {
-    return <AccessDeniedScreen />;
-  }
+    const claimDailyReward = () => {
+        if (isDailyRewardAvailable) {
+            setScore(s => s + DAILY_REWARD_COINS);
+            setEnergy(maxEnergy);
+            setLastDailyReward(new Date().toISOString());
+        }
+    };
+    
+    const claimTask = (taskId: TaskId) => {
+        const task = TASKS.find(t => t.id === taskId);
+        if (task && !claimedTasks.includes(taskId)) {
+            const progress = task.getProgress({ totalTaps, friends, score });
+            if (progress >= task.goal) {
+                setScore(s => s + task.reward);
+                setClaimedTasks(prev => [...prev, taskId]);
+            }
+        }
+    };
 
-  return (
-    <>
-      <EarnModal
-        isOpen={isEarnModalOpen}
-        onClose={() => setIsEarnModalOpen(false)}
-        isDailyRewardAvailable={isDailyRewardAvailable}
-        onClaimDailyReward={handleClaimDailyReward}
-        tasks={TASKS}
-        totalTaps={totalTaps}
-        friends={friends}
-        score={score}
-        claimedTasks={claimedTasks}
-        onClaimTask={handleClaimTask}
-      />
-      <UpgradesModal
-        isOpen={isUpgradesModalOpen}
-        onClose={() => setIsUpgradesModalOpen(false)}
-        onPurchaseBoost={handlePurchaseBoost}
-        score={score}
-        tapLevel={tapLevel}
-        energyLevel={energyLevel}
-        tapValue={tapValue}
-        maxEnergy={maxEnergy}
-        tapUpgradeCost={tapUpgradeCost}
-        energyUpgradeCost={energyUpgradeCost}
-        onUpgradeTap={handleUpgradeTap}
-        onUpgradeEnergy={handleUpgradeEnergy}
-      />
-      <div
-        role="status"
-        aria-live="polite"
-        className={`fixed bottom-28 left-1/2 -translate-x-1/2 z-50 bg-green-600/90 backdrop-blur-sm text-white font-bold py-3 px-6 rounded-full shadow-lg transition-all duration-500 ease-in-out transform ${
-            notification ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'
-        }`}
-      >
-        {notification}
-      </div>
-      <div className="bg-gradient-to-b from-gray-900 via-indigo-900 to-black h-screen w-screen text-white font-sans flex flex-col items-center select-none overflow-hidden">
-          {tapAnimations.map((anim) => (
-              <div
-                  key={anim.id}
-                  className="absolute text-5xl font-bold text-white opacity-100 pointer-events-none animate-fade-up"
-                  style={{ 
-                      left: anim.x, 
-                      top: anim.y, 
-                      transform: 'translate(-50%, -50%)',
-                      textShadow: '0 0 10px rgba(255,255,255,0.5)' 
-                  }}
-              >
-                  +{effectiveTapValue}
-              </div>
-          ))}
-        
-        <div className="w-full max-w-lg mx-auto flex flex-col h-full px-4 pt-8 pb-24">
-            <header className="w-full flex flex-col items-center gap-4 flex-shrink-0">
-                <div className="text-center">
-                    <p className="text-lg font-semibold text-gray-300">Welcome, {telegramUser.first_name}!</p>
+    const handleCopyReferralCode = () => {
+        navigator.clipboard.writeText(referralCode).then(() => {
+            showNotification('Referral code copied!');
+        }).catch(err => {
+            console.error('Failed to copy code: ', err);
+            showNotification('Failed to copy code.');
+        });
+    };
+
+    const handleClaimInvite = () => {
+        if (inviteCodeInput.trim()) {
+            // Mock logic: pretend it's a valid code
+            setScore(s => s + INVITE_BONUS);
+            showNotification(`Success! You got ${INVITE_BONUS.toLocaleString()} bonus coins!`);
+            setInviteCodeInput('');
+            // Add a new friend to the list to simulate joining a squad
+            const newFriendId = friends.length + 3; // a mock id
+            setFriends(f => [...f, {
+                id: newFriendId,
+                name: `Friend ${newFriendId - 2}`,
+                score: 0,
+                avatar: `https://picsum.photos/40/40?random=${newFriendId}`
+            }]);
+        } else {
+            showNotification('Please enter a valid code.');
+        }
+    };
+
+    const handleOpenGiftBox = () => {
+        if (!isGiftBoxAvailable) return;
+
+        const reward = GIFT_BOX_REWARDS[Math.floor(Math.random() * GIFT_BOX_REWARDS.length)];
+        setGiftBoxReward(reward);
+
+        switch (reward.type) {
+            case 'coins':
+                setScore(s => s + reward.value);
+                break;
+            case 'energy':
+                setEnergy(e => Math.min(maxEnergy, e + reward.value));
+                break;
+            case 'boost_turbo_tap':
+                setActiveBoosts(prev => ({ ...prev, turbo_tap: { endTime: Date.now() + reward.value * 1000 }}));
+                break;
+        }
+
+        setLastGiftBoxOpen(new Date().toISOString());
+        setIsGiftBoxModalOpen(true);
+        showNotification(`You received: ${reward.label}!`);
+    };
+
+    const spinWheel = () => {
+        if (!isSpinning && isSpinAvailable) {
+            setIsSpinning(true);
+            setLastSpin(new Date().toISOString());
+
+            const spinDuration = 5000; // 5 seconds
+            const randomSpins = 5 + Math.floor(Math.random() * 5); // 5 to 9 full spins
+            const prizeIndex = Math.floor(Math.random() * WHEEL_REWARDS.length);
+            const prize = WHEEL_REWARDS[prizeIndex];
+            const segmentAngle = 360 / WHEEL_REWARDS.length;
+            const stopAngle = (randomSpins * 360) + (prizeIndex * segmentAngle) - (segmentAngle / 2);
+
+            setWheelRotation(stopAngle);
+
+            setTimeout(() => {
+                setIsSpinning(false);
+                switch (prize.type) {
+                    case 'coins':
+                        setScore(s => s + prize.value);
+                        showNotification(`You won ${prize.value.toLocaleString()} coins!`);
+                        break;
+                    case 'energy':
+                        setEnergy(maxEnergy);
+                         showNotification(`You won a full energy refill!`);
+                        break;
+                    case 'boost_turbo_tap':
+                        setActiveBoosts(prev => ({ ...prev, turbo_tap: { endTime: Date.now() + prize.value * 1000 }}));
+                         showNotification(`You won a Turbo Tap boost!`);
+                        break;
+                    case 'boost_multi_tap':
+                        setActiveBoosts(prev => ({ ...prev, multi_tap: { endTime: Date.now() + prize.value * 1000 }}));
+                         showNotification(`You won a Multi Tap boost!`);
+                        break;
+                }
+            }, spinDuration);
+        }
+    };
+
+    const handleTonPurchase = () => {
+        setTonPurchases(p => p + 1);
+        // Activate auto-miner for 24 hours
+        const twentyFourHoursInMs = 24 * 60 * 60 * 1000;
+        setActiveBoosts(prev => ({
+            ...prev,
+            auto_mine: { endTime: Date.now() + twentyFourHoursInMs }
+        }));
+        showNotification('TON Purchase Complete! 24h Auto-Miner activated.');
+        setUpgradesModalOpen(false);
+    };
+
+    const handleClaimStreakReward = useCallback((milestone: number) => {
+        if (tapStreak >= milestone && !claimedStreakMilestones.includes(milestone)) {
+            const reward = STREAK_REWARDS[milestone];
+            if (reward) {
+                setScore(s => s + reward);
+                setClaimedStreakMilestones(prev => [...prev, milestone]);
+                showNotification(`+${reward.toLocaleString()} coins for ${milestone} tap streak!`);
+            }
+        }
+    }, [tapStreak, claimedStreakMilestones, showNotification]);
+
+
+    return (
+        <div className="bg-gradient-to-b from-gray-900 via-black to-black text-white h-screen flex flex-col font-sans overflow-hidden">
+             {notification && <Notification message={notification} onClose={() => setNotification(null)} />}
+            <header className="w-full p-4 flex-shrink-0">
+                <div className="flex justify-between items-center gap-4">
+                    <div className="flex items-center gap-2">
+                        <img src="https://picsum.photos/40/40?grayscale" className="w-10 h-10 rounded-full border-2 border-yellow-500" />
+                        <div>
+                            <p className="font-semibold text-gray-400 text-sm">Player</p>
+                            <p className="font-bold text-lg">Miner01</p>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-2 text-2xl font-bold bg-black/20 px-4 py-2 rounded-full border border-gray-700">
+                        <img src="https://picsum.photos/24/24?grayscale" className="w-6 h-6 rounded-full" />
+                        <span className={`text-yellow-400 ${isScoreAnimating ? 'animate-score-pulse' : ''}`}>{Math.floor(score).toLocaleString()}</span>
+                    </div>
                 </div>
-                <div className="flex items-center gap-2">
-                    <img src="https://picsum.photos/40/40?grayscale" alt="coin" className="w-12 h-12 rounded-full border-2 border-yellow-400" />
-                    <span className="text-5xl font-bold">{score.toLocaleString()}</span>
+                <div className="mt-4">
+                     <LeagueDisplay score={score} />
                 </div>
-                <LeagueDisplay score={score} />
             </header>
 
-            {activeView === 'tap' && (
-                <TapView 
-                    activeBoosts={activeBoosts}
-                    handleTap={handleTap}
-                    energy={energy}
-                    maxEnergy={maxEnergy}
-                    handleRefillEnergy={handleRefillEnergy}
-                    score={score}
-                />
-            )}
-
-            {activeView === 'frens' && (
-                <FriendsView 
+            <div className="flex-grow w-full p-4 overflow-hidden relative">
+                {activeView === 'tap' && (
+                    <>
+                        <TapView 
+                            activeBoosts={activeBoosts}
+                            handleTap={handleTap}
+                            energy={energy}
+                            maxEnergy={maxEnergy}
+                            handleRefillEnergy={handleRefillEnergy}
+                            score={score}
+                            tapStreak={tapStreak}
+                            isGiftBoxAvailable={isGiftBoxAvailable}
+                            onOpenGiftBox={handleOpenGiftBox}
+                            claimedStreakMilestones={claimedStreakMilestones}
+                            onClaimStreakReward={handleClaimStreakReward}
+                        />
+                        {tapAnimations.map(anim => (
+                            <div key={anim.id} className="absolute text-4xl font-bold text-white pointer-events-none animate-fade-up" style={{ left: anim.x, top: anim.y, color: anim.isBonus ? '#fde047' : 'white' }}>
+                                +{anim.value}
+                            </div>
+                        ))}
+                    </>
+                )}
+                {activeView === 'frens' && <FriendsView 
                     friends={friends} 
-                    onAddFriend={handleAddFriend}
-                    inviteCode={inviteCode}
-                    hasUsedReferral={hasUsedReferral}
-                    onClaimReferral={handleClaimReferral}
-                    showNotification={showNotification}
-                />
-            )}
-        </div>
+                    referralCode={referralCode} 
+                    onCopyReferralCode={handleCopyReferralCode} 
+                    onClaimInvite={handleClaimInvite} 
+                    inviteCodeInput={inviteCodeInput} 
+                    setInviteCodeInput={setInviteCodeInput} 
+                    tasks={frensTasks}
+                    totalTaps={totalTaps}
+                    score={score}
+                    claimedTasks={claimedTasks}
+                    onClaimTask={claimTask}
+                    showAdAndDo={showAdAndDo}
+                />}
+                {activeView === 'wallet' && <WalletView 
+                    score={score} 
+                    adsViewed={adsViewed}
+                    referrals={friends.length}
+                    timeSpent={timeSpent}
+                    tonPurchases={tonPurchases}
+                />}
+            </div>
 
-        <BottomNavBar 
-            activeView={activeView}
-            setActiveView={setActiveView}
-            onBoostClick={() => setIsUpgradesModalOpen(true)}
-            isAnythingToClaim={isAnythingToClaim}
-            onEarnClick={() => setIsEarnModalOpen(true)}
-        />
-      </div>
-    </>
-  );
-}
+            <nav className="w-full bg-black/30 backdrop-blur-md border-t border-gray-800 grid grid-cols-5 gap-1 p-1 rounded-t-2xl">
+                <button onClick={() => setActiveView('tap')} className={`flex flex-col items-center justify-center text-center p-2 rounded-lg ${activeView === 'tap' ? 'bg-yellow-500/20 text-yellow-300' : 'text-gray-400'}`}>
+                    <HomeIcon className="w-7 h-7 mb-1" />
+                    <span className="text-xs font-bold">Tap</span>
+                </button>
+                <button onClick={() => setUpgradesModalOpen(true)} className="flex flex-col items-center justify-center text-center p-2 rounded-lg text-gray-400">
+                    <BoostIcon className="w-7 h-7 mb-1" />
+                    <span className="text-xs font-bold">Boost</span>
+                </button>
+                <button onClick={() => setEarnModalOpen(true)} className="flex flex-col items-center justify-center text-center p-2 rounded-lg text-gray-400">
+                    <EarnIcon className="w-7 h-7 mb-1" />
+                    <span className="text-xs font-bold">Earn</span>
+                </button>
+                <button onClick={() => setActiveView('frens')} className={`flex flex-col items-center justify-center text-center p-2 rounded-lg ${activeView === 'frens' ? 'bg-yellow-500/20 text-yellow-300' : 'text-gray-400'}`}>
+                    <FriendsIcon className="w-7 h-7 mb-1" />
+                    <span className="text-xs font-bold">Frens</span>
+                </button>
+                 <button onClick={() => setActiveView('wallet')} className={`flex flex-col items-center justify-center text-center p-2 rounded-lg ${activeView === 'wallet' ? 'bg-yellow-500/20 text-yellow-300' : 'text-gray-400'}`}>
+                    <WalletIcon className="w-7 h-7 mb-1" />
+                    <span className="text-xs font-bold">Wallet</span>
+                </button>
+            </nav>
+
+            <GiftBoxModal
+                isOpen={isGiftBoxModalOpen}
+                onClose={() => setIsGiftBoxModalOpen(false)}
+                reward={giftBoxReward}
+            />
+
+            <EarnModal 
+                isOpen={earnModalOpen}
+                onClose={() => setEarnModalOpen(false)}
+                isDailyRewardAvailable={isDailyRewardAvailable}
+                onClaimDailyReward={claimDailyReward}
+                tasks={earnTasks}
+                totalTaps={totalTaps}
+                friends={friends}
+                score={score}
+                claimedTasks={claimedTasks}
+                onClaimTask={claimTask}
+                isSpinAvailable={isSpinAvailable}
+                onSpin={spinWheel}
+                isSpinning={isSpinning}
+                wheelRotation={wheelRotation}
+                showAdAndDo={showAdAndDo}
+            />
+
+            <UpgradesModal
+                isOpen={upgradesModalOpen}
+                onClose={() => setUpgradesModalOpen(false)}
+                onPurchaseBoost={purchaseBoost}
+                score={score}
+                tapLevel={tapLevel}
+                energyLevel={energyLevel}
+                tapValue={tapValue}
+                maxEnergy={maxEnergy}
+                tapUpgradeCost={tapUpgradeCost}
+                energyUpgradeCost={energyUpgradeCost}
+                onUpgradeTap={onUpgradeTap}
+                onUpgradeEnergy={onUpgradeEnergy}
+                onPurchaseWithTon={handleTonPurchase}
+                showAdAndDo={showAdAndDo}
+            />
+        </div>
+    );
+};
+
+export default App;
