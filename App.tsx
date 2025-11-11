@@ -1,6 +1,9 @@
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { HomeIcon, MineIcon, FriendsIcon, EarnIcon, BoostIcon, EnergyIcon, RocketLaunchIcon, PlusIcon, MultiTapIcon, AutoMineIcon, GiftIcon, CheckBadgeIcon, TargetIcon, ClipboardIcon, ArrowUpCircleIcon, StarIcon, WalletIcon } from './components/Icons';
+import { useAdsgram } from './hooks/useAdsgram';
+import type { ShowPromiseResult } from './types/adsgram';
+
 
 // --- Type Definitions ---
 type TapAnimation = {
@@ -80,10 +83,6 @@ declare global {
         };
         openTelegramLink: (url: string) => void;
       }
-    };
-    adsgram?: {
-      isAvailable: () => boolean;
-      show: (type: string, callback: (result: { success: boolean }) => void) => void;
     };
   }
 }
@@ -1072,19 +1071,20 @@ const App: React.FC = () => {
         setTimeout(() => setNotification(null), duration);
     }, []);
 
+    const showAd = useAdsgram({
+        blockId: 'int-17151',
+        onError: (error: ShowPromiseResult) => {
+            console.error("Ad error:", error);
+            showNotification(error.description || "Ad failed to load.");
+        },
+    });
+
     const showAdAndDo = (action: () => void) => {
-        if (window.adsgram && window.adsgram.isAvailable()) {
-            window.adsgram.show('interstitial', (result: { success: boolean }) => {
-                if (result.success) {
-                    setAdsViewed(prev => prev + 1);
-                }
-                action();
-            });
-        } else {
-            // For development/testing purposes when ads aren't available
+        const onReward = () => {
             setAdsViewed(prev => prev + 1);
             action();
-        }
+        };
+        showAd(onReward);
     };
 
     // --- Effects ---
