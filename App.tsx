@@ -84,6 +84,7 @@ declare global {
         openTelegramLink: (url: string) => void;
       }
     };
+    TonconnectUI?: any;
   }
 }
 
@@ -878,21 +879,31 @@ const WalletView: React.FC<{
     referrals: number;
     timeSpent: number;
     tonPurchases: number;
-}> = ({ score, adsViewed, referrals, timeSpent, tonPurchases }) => {
+    walletAddress: string | null;
+    onLoad: (buttonRootId: string) => void;
+}> = ({ score, adsViewed, referrals, timeSpent, tonPurchases, walletAddress, onLoad }) => {
+    useEffect(() => {
+        onLoad('ton-connect-wallet-button');
+    }, [onLoad]);
+
+    const isConnected = !!walletAddress;
+
+    const formatAddress = (address: string) => {
+        if (!address) return '';
+        return `${address.slice(0, 6)}...${address.slice(-4)}`;
+    };
+    
     const AIRDROP_POOL = 17_000_000;
     const TEAM_POOL = 4_000_000;
     const TOTAL_SUPPLY = 21_000_000;
-    // This is a fictional number representing the estimated total shares of all users in the future
-    // over a 10-year period. It's used to give the user a rough estimate of their potential reward.
     const ESTIMATED_TOTAL_COMMUNITY_SHARES = 50_000_000_000_000;
 
-    // Define weights for each factor contributing to the airdrop
     const WEIGHTS = {
         SCORE: 1,
-        REFERRAL: 10000, // Each friend is worth 10,000 points
-        AD_VIEW: 500,     // Each ad view is worth 500 points
-        TIME_SPENT: 1/10, // 1 share point for every 10 seconds
-        TON_PURCHASE: 100000 // Each TON purchase is worth 100,000 points
+        REFERRAL: 10000,
+        AD_VIEW: 500,
+        TIME_SPENT: 1/10,
+        TON_PURCHASE: 100000
     };
 
     const scoreShares = score * WEIGHTS.SCORE;
@@ -900,9 +911,7 @@ const WalletView: React.FC<{
     const adShares = adsViewed * WEIGHTS.AD_VIEW;
     const timeShares = Math.floor(timeSpent * WEIGHTS.TIME_SPENT);
     const purchaseShares = tonPurchases * WEIGHTS.TON_PURCHASE;
-
     const totalUserShares = scoreShares + referralShares + adShares + timeShares + purchaseShares;
-
     const estimatedTokens = (totalUserShares / ESTIMATED_TOTAL_COMMUNITY_SHARES) * AIRDROP_POOL;
     
     const formatTime = (seconds: number) => {
@@ -914,59 +923,76 @@ const WalletView: React.FC<{
     return (
         <div className="flex flex-col items-center justify-start h-full w-full text-white p-4 pt-2 animate-fade-in overflow-y-auto">
             <div className="w-full max-w-sm">
-                <h2 className="text-3xl font-bold mb-2 text-center">Wallet</h2>
-                <p className="text-gray-400 mb-6 text-center">Your in-game assets and token information.</p>
+                 <div className="flex justify-between items-center mb-6">
+                    <h2 className="text-3xl font-bold">Wallet</h2>
+                    <div id="ton-connect-wallet-button"></div>
+                </div>
 
-                <div className="w-full bg-gray-800 rounded-xl p-6 space-y-4 border border-gray-700 shadow-lg shadow-yellow-500/10 mb-6">
-                    <div className="flex justify-between items-center">
-                        <span className="font-semibold text-gray-300">Your Balance</span>
-                        <div className="flex items-center gap-2 text-2xl font-bold text-yellow-400">
-                            <EnergyIcon className="w-6 h-6" />
-                            <span>{Math.floor(score).toLocaleString()}</span>
+                {!isConnected ? (
+                     <div className="text-center bg-gray-800 rounded-xl p-8 border border-gray-700 mt-8">
+                        <WalletIcon className="w-20 h-20 mx-auto text-cyan-400 mb-4" />
+                        <h3 className="text-2xl font-bold mb-2">Connect Your Wallet</h3>
+                        <p className="text-gray-400">
+                            Connect your TON wallet to view your stats and airdrop eligibility.
+                        </p>
+                    </div>
+                ) : (
+                    <>
+                        <div className="w-full bg-gray-800 rounded-xl p-4 mb-6 border border-gray-700 flex flex-col items-center gap-2">
+                             <p className="text-sm font-semibold text-gray-400">Connected Address</p>
+                             <div className="font-mono text-lg text-cyan-300 bg-gray-900/50 px-4 py-2 rounded-lg">
+                                {formatAddress(walletAddress)}
+                            </div>
                         </div>
-                    </div>
-                </div>
 
-                <div className="w-full bg-gray-800 rounded-xl p-6 space-y-3 border border-cyan-500/50 shadow-lg shadow-cyan-500/10 mb-6">
-                    <h3 className="font-bold text-cyan-300 text-left text-xl flex items-center gap-2 mb-4">
-                        <GiftIcon className="w-6 h-6"/>
-                        <span>Airdrop Estimation</span>
-                    </h3>
-                    
-                    <div className="bg-gray-900/50 p-4 rounded-lg text-center">
-                        <p className="text-gray-400 text-sm">You will receive an estimated</p>
-                        <p className="text-3xl font-bold text-white my-2">{estimatedTokens.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ELZR</p>
-                        <p className="text-gray-500 text-xs">Based on your {totalUserShares.toLocaleString()} shares</p>
-                    </div>
+                        <div className="w-full bg-gray-800 rounded-xl p-6 space-y-4 border border-gray-700 shadow-lg shadow-yellow-500/10 mb-6">
+                            <div className="flex justify-between items-center">
+                                <span className="font-semibold text-gray-300">Your Balance</span>
+                                <div className="flex items-center gap-2 text-2xl font-bold text-yellow-400">
+                                    <EnergyIcon className="w-6 h-6" />
+                                    <span>{Math.floor(score).toLocaleString()}</span>
+                                </div>
+                            </div>
+                        </div>
 
-                    <div className="!my-4 border-t border-gray-700"></div>
+                        <div className="w-full bg-gray-800 rounded-xl p-6 space-y-3 border border-cyan-500/50 shadow-lg shadow-cyan-500/10 mb-6">
+                            <h3 className="font-bold text-cyan-300 text-left text-xl flex items-center gap-2 mb-4">
+                                <GiftIcon className="w-6 h-6"/>
+                                <span>Airdrop Estimation</span>
+                            </h3>
+                            
+                            <div className="bg-gray-900/50 p-4 rounded-lg text-center">
+                                <p className="text-gray-400 text-sm">You will receive an estimated</p>
+                                <p className="text-3xl font-bold text-white my-2">{estimatedTokens.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ELZR</p>
+                                <p className="text-gray-500 text-xs">Based on your {totalUserShares.toLocaleString()} shares</p>
+                            </div>
 
-                    <p className="text-sm text-gray-400">Your total shares are calculated based on:</p>
-                    <div className="text-left text-sm space-y-2 text-gray-300">
-                        <div className="flex justify-between items-center bg-gray-700/50 p-2 rounded-md"><span>Score ({score.toLocaleString()})</span><span className="font-bold text-white font-mono">{scoreShares.toLocaleString()} shares</span></div>
-                        <div className="flex justify-between items-center bg-gray-700/50 p-2 rounded-md"><span>Referrals ({referrals})</span><span className="font-bold text-white font-mono">{referralShares.toLocaleString()} shares</span></div>
-                        <div className="flex justify-between items-center bg-gray-700/50 p-2 rounded-md"><span>Ads Viewed ({adsViewed})</span><span className="font-bold text-white font-mono">{adShares.toLocaleString()} shares</span></div>
-                        <div className="flex justify-between items-center bg-gray-700/50 p-2 rounded-md"><span>Time Spent ({formatTime(timeSpent)})</span><span className="font-bold text-white font-mono">{timeShares.toLocaleString()} shares</span></div>
-                        <div className="flex justify-between items-center bg-gray-700/50 p-2 rounded-md"><span>TON Purchases ({tonPurchases})</span><span className="font-bold text-white font-mono">{purchaseShares.toLocaleString()} shares</span></div>
-                    </div>
+                            <div className="!my-4 border-t border-gray-700"></div>
 
-                    <p className="text-center mt-4 text-xs text-gray-500">This is an estimate. The airdrop pool will be distributed over 10 years. Your final amount depends on your activity relative to the entire community's participation.</p>
-                </div>
+                            <p className="text-sm text-gray-400">Your total shares are calculated based on:</p>
+                            <div className="text-left text-sm space-y-2 text-gray-300">
+                                <div className="flex justify-between items-center bg-gray-700/50 p-2 rounded-md"><span>Score ({score.toLocaleString()})</span><span className="font-bold text-white font-mono">{scoreShares.toLocaleString()} shares</span></div>
+                                <div className="flex justify-between items-center bg-gray-700/50 p-2 rounded-md"><span>Referrals ({referrals})</span><span className="font-bold text-white font-mono">{referralShares.toLocaleString()} shares</span></div>
+                                <div className="flex justify-between items-center bg-gray-700/50 p-2 rounded-md"><span>Ads Viewed ({adsViewed})</span><span className="font-bold text-white font-mono">{adShares.toLocaleString()} shares</span></div>
+                                <div className="flex justify-between items-center bg-gray-700/50 p-2 rounded-md"><span>Time Spent ({formatTime(timeSpent)})</span><span className="font-bold text-white font-mono">{timeShares.toLocaleString()} shares</span></div>
+                                <div className="flex justify-between items-center bg-gray-700/50 p-2 rounded-md"><span>TON Purchases ({tonPurchases})</span><span className="font-bold text-white font-mono">{purchaseShares.toLocaleString()} shares</span></div>
+                            </div>
 
-                <div className="w-full bg-gray-800 rounded-xl p-6 space-y-4 border border-gray-700">
-                    <h3 className="font-semibold text-cyan-300 text-left mb-3 flex items-center gap-2"><StarIcon className="w-5 h-5" /><span>Eliezer (ELZR) Tokenomics</span></h3>
-                    <div className="text-left text-sm space-y-2 text-gray-400">
-                        <div className="flex justify-between items-center bg-gray-900/50 p-2 rounded-md"><span>Total Supply:</span><span className="font-bold text-white font-mono">{TOTAL_SUPPLY.toLocaleString()} ELZR</span></div>
-                        <div className="flex justify-between items-center bg-gray-900/50 p-2 rounded-md"><span>Airdrop Pool:</span><span className="font-bold text-white font-mono">{AIRDROP_POOL.toLocaleString()} ELZR</span></div>
-                        <div className="flex justify-between items-center bg-gray-900/50 p-2 rounded-md"><span>Team & Development:</span><span className="font-bold text-white font-mono">{TEAM_POOL.toLocaleString()} ELZR</span></div>
-                        <div className="flex justify-between items-center bg-gray-900/50 p-2 rounded-md"><span>Generation Date:</span><span className="font-bold text-white font-mono">11.07.2025</span></div>
-                        <div className="flex justify-between items-center bg-gray-900/50 p-2 rounded-md"><span>Blockchain:</span><span className="font-bold text-white font-mono">TON Network</span></div>
-                    </div>
-                </div>
-                
-                 <div className="text-center mt-6 text-xs text-gray-500">
-                    <p>Connect a real TON wallet for future airdrops.</p>
-                </div>
+                            <p className="text-center mt-4 text-xs text-gray-500">This is an estimate. The airdrop pool will be distributed over 10 years. Your final amount depends on your activity relative to the entire community's participation.</p>
+                        </div>
+
+                        <div className="w-full bg-gray-800 rounded-xl p-6 space-y-4 border border-gray-700">
+                            <h3 className="font-semibold text-cyan-300 text-left mb-3 flex items-center gap-2"><StarIcon className="w-5 h-5" /><span>Eliezer (ELZR) Tokenomics</span></h3>
+                            <div className="text-left text-sm space-y-2 text-gray-400">
+                                <div className="flex justify-between items-center bg-gray-900/50 p-2 rounded-md"><span>Total Supply:</span><span className="font-bold text-white font-mono">{TOTAL_SUPPLY.toLocaleString()} ELZR</span></div>
+                                <div className="flex justify-between items-center bg-gray-900/50 p-2 rounded-md"><span>Airdrop Pool:</span><span className="font-bold text-white font-mono">{AIRDROP_POOL.toLocaleString()} ELZR</span></div>
+                                <div className="flex justify-between items-center bg-gray-900/50 p-2 rounded-md"><span>Team & Development:</span><span className="font-bold text-white font-mono">{TEAM_POOL.toLocaleString()} ELZR</span></div>
+                                <div className="flex justify-between items-center bg-gray-900/50 p-2 rounded-md"><span>Generation Date:</span><span className="font-bold text-white font-mono">11.07.2025</span></div>
+                                <div className="flex justify-between items-center bg-gray-900/50 p-2 rounded-md"><span>Blockchain:</span><span className="font-bold text-white font-mono">TON Network</span></div>
+                            </div>
+                        </div>
+                    </>
+                )}
             </div>
         </div>
     );
@@ -1023,6 +1049,27 @@ const App: React.FC = () => {
     // Frens state
     const [referralCode, setReferralCode] = useState('');
     const [inviteCodeInput, setInviteCodeInput] = useState('');
+
+    // TON Connect state
+    const tonConnectUIRef = useRef<any>(null); // To hold the singleton instance
+    const [walletAddress, setWalletAddress] = useState<string | null>(null);
+
+    const initTonConnect = useCallback((buttonRootId: string) => {
+        if (tonConnectUIRef.current || typeof window === 'undefined' || !window.TonconnectUI) {
+            return;
+        }
+
+        const tonConnectUI = new window.TonconnectUI({
+            manifestUrl: `${window.location.origin}/tonconnect-manifest.json`,
+            buttonRootId: buttonRootId,
+        });
+
+        tonConnectUI.onStatusChange(wallet => {
+            setWalletAddress(wallet ? wallet.account.address : null);
+        });
+
+        tonConnectUIRef.current = tonConnectUI;
+    }, []);
 
     // --- Derived State ---
     const tapValue = useMemo(() => {
@@ -1359,8 +1406,18 @@ const App: React.FC = () => {
     };
 
     const handleTonPurchase = () => {
+        const tonConnectUI = tonConnectUIRef.current;
+        if (!tonConnectUI || !walletAddress) {
+            showNotification('Please connect your TON wallet first.');
+            return;
+        }
+
+        // Example transaction - this is a placeholder
+        console.log('Initiating TON transaction...');
+        // const transaction = { ... };
+        // tonConnectUI.sendTransaction(transaction).then(...);
+
         setTonPurchases(p => p + 1);
-        // Activate auto-miner for 24 hours
         const twentyFourHoursInMs = 24 * 60 * 60 * 1000;
         setActiveBoosts(prev => ({
             ...prev,
@@ -1447,6 +1504,8 @@ const App: React.FC = () => {
                     referrals={friends.length}
                     timeSpent={timeSpent}
                     tonPurchases={tonPurchases}
+                    walletAddress={walletAddress}
+                    onLoad={initTonConnect}
                 />}
             </div>
 

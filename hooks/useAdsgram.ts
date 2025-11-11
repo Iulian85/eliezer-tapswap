@@ -1,34 +1,68 @@
 import { useCallback, useEffect, useRef } from 'react';
-import type { AdController, ShowPromiseResult } from '../types/adsgram';
+import type { ShowPromiseResult } from '../types/adsgram';
 
-export interface useAdsgramParams {
+export interface UseAdsgramParams {
   blockId: string;
-  onError?: (result: ShowPromiseResult) => void;
+  onError?: (error: ShowPromiseResult) => void;
 }
 
-export function useAdsgram({ blockId, onError }: useAdsgramParams) {
-  const AdControllerRef = useRef<AdController | undefined>(undefined);
+// Keep a global reference to the initialized ad controller
+// to avoid re-initializing on every component mount.
+let adController: { show: () => Promise<ShowPromiseResult> } | null = null;
 
+export function useAdsgram({ blockId, onError }: UseAdsgramParams) {
+  const onErrorRef = useRef(onError);
+  
+  // Keep onError callback up-to-date
   useEffect(() => {
-    if (window.Adsgram) {
-      AdControllerRef.current = window.Adsgram.init({ blockId });
-    }
+    onErrorRef.current = onError;
+  }, [onError]);
+  
+  // Initialize the SDK once
+  useEffect(() => {
+    if (adController) return;
+
+    let attempts = 0;
+    const maxAttempts = 10;
+    const interval = setInterval(() => {
+      attempts++;
+      if (window.adsgram) {
+        clearInterval(interval);
+        try {
+          adController = window.adsgram.init({ blockId });
+        } catch (e) {
+          console.error("Adsgram initialization failed", e);
+        }
+      } else if (attempts >= maxAttempts) {
+        clearInterval(interval);
+        console.error('Adsgram SDK could not be found on window object.');
+      }
+    }, 200);
+
+    return () => clearInterval(interval);
   }, [blockId]);
 
   return useCallback((onReward: () => void) => {
-    if (AdControllerRef.current) {
-      AdControllerRef.current
-        .show()
-        .then(() => {
+    if (adController) {
+      adController.show().then(result => {
+        if (result.isSuccess) {
           onReward();
-        })
-        .catch((result: ShowPromiseResult) => {
+        } else {
           console.error('Adsgram error:', result);
-          onError?.(result);
-        });
+          onErrorRef.current?.(result);
+        }
+      }).catch(err => {
+        console.error('Ad error:', err);
+        const errorResult: ShowPromiseResult = {
+          isSuccess: false,
+          description: err.message || 'An unknown error occurred while showing the ad.'
+        };
+        onErrorRef.current?.(errorResult);
+      });
     } else {
-      console.warn('Adsgram script not loaded. Simulating reward for development.');
+      console.warn('Adsgram is not initialized. Simulating reward for development.');
+      // Fallback for development outside of Telegram or if SDK fails to init
       onReward();
     }
-  }, [onError]);
+  }, []);
 }
