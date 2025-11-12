@@ -1,7 +1,10 @@
 
+
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { HomeIcon, MineIcon, FriendsIcon, EarnIcon, BoostIcon, EnergyIcon, RocketLaunchIcon, PlusIcon, MultiTapIcon, AutoMineIcon, GiftIcon, CheckBadgeIcon, TargetIcon, ClipboardIcon, ArrowUpCircleIcon, StarIcon, WalletIcon } from './components/Icons';
 import { useAdsgram } from './hooks/useAdsgram';
+import { useTonConnect } from './hooks/useTonConnect';
+import { TonConnectButton } from './components/TonConnectButton';
 import type { ShowPromiseResult } from './types/adsgram';
 
 
@@ -878,7 +881,29 @@ const WalletView: React.FC<{
     referrals: number;
     timeSpent: number;
     tonPurchases: number;
-}> = ({ score, adsViewed, referrals, timeSpent, tonPurchases }) => {
+    connected: boolean;
+    onConnect: () => void;
+}> = ({ score, adsViewed, referrals, timeSpent, tonPurchases, connected, onConnect }) => {
+    if (!connected) {
+        return (
+            <div className="flex flex-col items-center justify-center h-full w-full text-white p-4 animate-fade-in">
+                <div className="w-full max-w-sm text-center bg-gray-800/50 backdrop-blur-sm rounded-xl p-8 border border-gray-700 shadow-lg">
+                    <WalletIcon className="w-16 h-16 mx-auto mb-4 text-cyan-400" />
+                    <h3 className="text-2xl font-bold mb-2">Connect Your Wallet</h3>
+                    <p className="text-gray-400 mb-6">
+                        Connect your TON wallet to see your airdrop estimations and manage your assets.
+                    </p>
+                    <button
+                        onClick={onConnect}
+                        className="w-full bg-cyan-500 text-white font-bold py-3 px-4 rounded-lg transition-transform duration-200 hover:scale-105"
+                    >
+                        Connect Wallet
+                    </button>
+                </div>
+            </div>
+        );
+    }
+    
     const AIRDROP_POOL = 17_000_000;
     const TEAM_POOL = 4_000_000;
     const TOTAL_SUPPLY = 21_000_000;
@@ -1023,6 +1048,9 @@ const App: React.FC = () => {
     // Frens state
     const [referralCode, setReferralCode] = useState('');
     const [inviteCodeInput, setInviteCodeInput] = useState('');
+
+    // TON Connect state
+    const { tonConnectUI, connected } = useTonConnect();
 
     // --- Derived State ---
     const tapValue = useMemo(() => {
@@ -1358,16 +1386,51 @@ const App: React.FC = () => {
         }
     };
 
-    const handleTonPurchase = () => {
-        setTonPurchases(p => p + 1);
-        // Activate auto-miner for 24 hours
-        const twentyFourHoursInMs = 24 * 60 * 60 * 1000;
-        setActiveBoosts(prev => ({
+    const handleConnectWallet = () => {
+        if (tonConnectUI && !connected) {
+            tonConnectUI.connectWallet();
+        }
+    };
+
+    const handleTonPurchase = async () => {
+        if (!connected || !tonConnectUI) {
+          showNotification('Please connect your TON wallet first.');
+          if (tonConnectUI) {
+              tonConnectUI.connectWallet();
+          }
+          return;
+        }
+      
+        const transaction = {
+          validUntil: Math.floor(Date.now() / 1000) + 60, // 60 seconds
+          messages: [
+            {
+              address: "UQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABADR", // destination address, bounceable for testing
+              amount: "10000000", // 0.01 TON in nano-tons
+            },
+          ],
+        };
+      
+        try {
+          showNotification('Please approve the transaction in your wallet.');
+          const result = await tonConnectUI.sendTransaction(transaction);
+          
+          showNotification('Transaction sent successfully!');
+          console.log('Transaction result:', result);
+          
+          // On success, update state
+          setTonPurchases(p => p + 1);
+          const twentyFourHoursInMs = 24 * 60 * 60 * 1000;
+          setActiveBoosts(prev => ({
             ...prev,
             auto_mine: { endTime: Date.now() + twentyFourHoursInMs }
-        }));
-        showNotification('TON Purchase Complete! 24h Auto-Miner activated.');
-        setUpgradesModalOpen(false);
+          }));
+          setUpgradesModalOpen(false);
+      
+        } catch (error) {
+          showNotification('Transaction was cancelled or failed.');
+          console.error('Transaction error:', error);
+        }
     };
 
     const handleClaimStreakReward = useCallback((milestone: number) => {
@@ -1394,9 +1457,12 @@ const App: React.FC = () => {
                             <p className="font-bold text-lg">Miner01</p>
                         </div>
                     </div>
-                    <div className="flex items-center gap-2 text-2xl font-bold bg-black/20 px-4 py-2 rounded-full border border-gray-700">
-                        <img src="https://picsum.photos/24/24?grayscale" className="w-6 h-6 rounded-full" />
-                        <span className={`text-yellow-400 ${isScoreAnimating ? 'animate-score-pulse' : ''}`}>{Math.floor(score).toLocaleString()}</span>
+                    <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-2 text-2xl font-bold bg-black/20 px-4 py-2 rounded-full border border-gray-700">
+                            <img src="https://picsum.photos/24/24?grayscale" className="w-6 h-6 rounded-full" />
+                            <span className={`text-yellow-400 ${isScoreAnimating ? 'animate-score-pulse' : ''}`}>{Math.floor(score).toLocaleString()}</span>
+                        </div>
+                        <TonConnectButton />
                     </div>
                 </div>
                 <div className="mt-4">
@@ -1447,6 +1513,8 @@ const App: React.FC = () => {
                     referrals={friends.length}
                     timeSpent={timeSpent}
                     tonPurchases={tonPurchases}
+                    connected={connected}
+                    onConnect={handleConnectWallet}
                 />}
             </div>
 

@@ -1,18 +1,16 @@
 export type ShowPromiseResult = {
-  error: boolean;
-  done: boolean;
-  state: 'load' | 'show' | 'close';
+  isSuccess: boolean;
   description: string;
 };
 
-export interface AdController {
-  show: () => Promise<void>;
-}
+type AdsgramController = {
+  show: () => Promise<ShowPromiseResult>;
+};
 
 declare global {
   interface Window {
-    Adsgram?: {
-      init: (params: { blockId: string }) => AdController;
+    adsgram?: {
+      init: (params: { blockId: string }) => AdsgramController;
     };
   }
 }
