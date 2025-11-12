@@ -875,6 +875,9 @@ const FriendsView: React.FC<{
     );
 };
 
+// Add a helper type for Wallet prop
+type WalletProp = { account: { address: string } } | null;
+
 const WalletView: React.FC<{
     score: number;
     adsViewed: number;
@@ -883,7 +886,16 @@ const WalletView: React.FC<{
     tonPurchases: number;
     connected: boolean;
     onConnect: () => void;
-}> = ({ score, adsViewed, referrals, timeSpent, tonPurchases, connected, onConnect }) => {
+    wallet: WalletProp;
+    showNotification: (message: string) => void;
+}> = ({ score, adsViewed, referrals, timeSpent, tonPurchases, connected, onConnect, wallet, showNotification }) => {
+    
+    const handleCopyAddress = useCallback((address: string) => {
+        navigator.clipboard.writeText(address).then(() => {
+            showNotification('Address copied to clipboard!');
+        });
+    }, [showNotification]);
+
     if (!connected) {
         return (
             <div className="flex flex-col items-center justify-center h-full w-full text-white p-4 animate-fade-in">
@@ -941,6 +953,27 @@ const WalletView: React.FC<{
             <div className="w-full max-w-sm">
                 <h2 className="text-3xl font-bold mb-2 text-center">Wallet</h2>
                 <p className="text-gray-400 mb-6 text-center">Your in-game assets and token information.</p>
+
+                {wallet && (
+                    <div className="w-full bg-gray-800 rounded-xl p-4 space-y-2 border border-gray-700 shadow-lg mb-6">
+                        <div className="flex justify-between items-center text-sm text-gray-400">
+                            <span>Connected Wallet</span>
+                            <span className="font-bold text-cyan-400">TON</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <span className="font-mono text-md text-white flex-grow truncate" title={wallet.account.address}>
+                                {wallet.account.address}
+                            </span>
+                            <button
+                                onClick={() => handleCopyAddress(wallet.account.address)}
+                                className="p-2 rounded-lg bg-gray-700 hover:bg-gray-600 transition-colors flex-shrink-0"
+                                aria-label="Copy wallet address"
+                            >
+                                <ClipboardIcon className="w-5 h-5 text-gray-300" />
+                            </button>
+                        </div>
+                    </div>
+                )}
 
                 <div className="w-full bg-gray-800 rounded-xl p-6 space-y-4 border border-gray-700 shadow-lg shadow-yellow-500/10 mb-6">
                     <div className="flex justify-between items-center">
@@ -1050,7 +1083,7 @@ const App: React.FC = () => {
     const [inviteCodeInput, setInviteCodeInput] = useState('');
 
     // TON Connect state
-    const { tonConnectUI, connected } = useTonConnect();
+    const { tonConnectUI, connected, wallet } = useTonConnect();
 
     // --- Derived State ---
     const tapValue = useMemo(() => {
@@ -1515,6 +1548,8 @@ const App: React.FC = () => {
                     tonPurchases={tonPurchases}
                     connected={connected}
                     onConnect={handleConnectWallet}
+                    wallet={wallet}
+                    showNotification={showNotification}
                 />}
             </div>
 

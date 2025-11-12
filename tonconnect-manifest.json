@@ -1,6 +1,6 @@
+
 {
-  "manifest_version": "0.0.1",
-  "name": "Eliezer App",
-  "url": "https://iulian85.github.io/",
-  "iconUrl": "https://raw.githubusercontent.com/Iulian85/eliezer-manifest/main/icon.png"
+  "url": "https://app.example.com",
+  "name": "Tap Coin Miner",
+  "iconUrl": "https://picsum.photos/256/256"
 }
