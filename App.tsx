@@ -1,9 +1,10 @@
 
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useTonConnectUI } from '@tonconnect/ui-react';
+import type { Wallet } from '@tonconnect/ui-react';
 import { HomeIcon, MineIcon, FriendsIcon, EarnIcon, BoostIcon, EnergyIcon, RocketLaunchIcon, PlusIcon, MultiTapIcon, AutoMineIcon, GiftIcon, CheckBadgeIcon, TargetIcon, ClipboardIcon, ArrowUpCircleIcon, StarIcon, WalletIcon } from './components/Icons';
 import { useAdsgram } from './hooks/useAdsgram';
-import { useTonConnect } from './hooks/useTonConnect';
 import { TonConnectButton } from './components/TonConnectButton';
 import type { ShowPromiseResult } from './types/adsgram';
 
@@ -949,9 +950,6 @@ const FriendsView: React.FC<{
     );
 };
 
-// Add a helper type for Wallet prop
-type WalletProp = { account: { address: string } } | null;
-
 const WalletView: React.FC<{
     score: number;
     adsViewed: number;
@@ -960,7 +958,7 @@ const WalletView: React.FC<{
     tonPurchases: number;
     connected: boolean;
     onConnect: () => void;
-    wallet: WalletProp;
+    wallet: Wallet | null;
     showNotification: (message: string) => void;
 }> = ({ score, adsViewed, referrals, timeSpent, tonPurchases, connected, onConnect, wallet, showNotification }) => {
     
@@ -1159,7 +1157,9 @@ const App: React.FC = () => {
     const [inviteCodeInput, setInviteCodeInput] = useState('');
 
     // TON Connect state
-    const { tonConnectUI, connected, wallet } = useTonConnect();
+    const [tonConnectUI] = useTonConnectUI();
+    const [wallet, setWallet] = useState<Wallet | null>(null);
+    const connected = !!wallet;
 
     // --- Derived State ---
     const tapValue = useMemo(() => {
@@ -1225,6 +1225,22 @@ const App: React.FC = () => {
     };
 
     // --- Effects ---
+
+     // Subscribe to wallet connection status changes
+    useEffect(() => {
+        const unsubscribe = tonConnectUI.onStatusChange(walletInfo => {
+            setWallet(walletInfo);
+        });
+
+        // Set initial wallet state in case it's already connected
+        if (tonConnectUI.wallet) {
+            setWallet(tonConnectUI.wallet);
+        }
+
+        return () => {
+            unsubscribe();
+        };
+    }, [tonConnectUI]);
 
     // Save state to localStorage whenever it changes
     useEffect(() => {
@@ -1523,8 +1539,8 @@ const App: React.FC = () => {
     };
 
     const handleConnectWallet = () => {
-        if (tonConnectUI && !connected) {
-            tonConnectUI.connectWallet();
+        if (tonConnectUI) {
+            tonConnectUI.openModal();
         }
     };
 
@@ -1532,7 +1548,7 @@ const App: React.FC = () => {
         if (!connected || !tonConnectUI) {
           showNotification('Please connect your TON wallet first.');
           if (tonConnectUI) {
-              tonConnectUI.connectWallet();
+              tonConnectUI.openModal();
           }
           return;
         }
@@ -1598,7 +1614,6 @@ const App: React.FC = () => {
                             <img src="https://picsum.photos/24/24?grayscale" className="w-6 h-6 rounded-full" />
                             <span className={`text-yellow-400 ${isScoreAnimating ? 'animate-score-pulse' : ''}`}>{Math.floor(score).toLocaleString()}</span>
                         </div>
-                        <TonConnectButton />
                     </div>
                 </div>
                 <div className="mt-4">
