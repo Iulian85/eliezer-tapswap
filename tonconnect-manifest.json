@@ -1,6 +1,7 @@
-
-{
-  "url": "https://app.example.com",
-  "name": "Tap Coin Miner",
-  "iconUrl": "https://picsum.photos/256/256"
-}
+	{
+		"url": "https://eliezer-tapswap-production.up.railway.app",                       
+		"name": "Eliezer App",                     
+		"iconUrl": "https://eliezer-tapswap-production.up.railway.app/assets/elzr-icon.png",              
+		"termsOfUseUrl": "<terms-of-use-url>",    
+		"privacyPolicyUrl": "<privacy-policy-url>" 
+	  }
