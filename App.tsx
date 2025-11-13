@@ -1,5 +1,6 @@
 
 
+
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useTonConnectUI } from '@tonconnect/ui-react';
 import type { Wallet } from '@tonconnect/ui-react';
@@ -105,6 +106,7 @@ declare global {
           start_param?: string;
         };
         openTelegramLink: (url: string) => void;
+        ready: () => void;
       }
     };
   }
@@ -1225,6 +1227,11 @@ const App: React.FC = () => {
     };
 
     // --- Effects ---
+
+    // Inform Telegram that the app is ready
+    useEffect(() => {
+        window.Telegram?.WebApp?.ready();
+    }, []);
 
      // Subscribe to wallet connection status changes
     useEffect(() => {
