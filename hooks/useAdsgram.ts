@@ -39,21 +39,27 @@ export function useAdsgram({ blockId, onError }: UseAdsgramParams) {
     }
 
     // In Telegram env, poll for the SDK, as it loads its own scripts asynchronously.
+    console.log("Adsgram: Starting to poll for SDK in Telegram environment.");
     let attempts = 0;
-    const maxAttempts = 50; // Poll for 5 seconds
+    const maxAttempts = 100; // Poll for 10 seconds (increased from 5)
     const intervalId = setInterval(() => {
         attempts++;
         if (window.adsgram) {
             clearInterval(intervalId);
+            console.log("Adsgram: SDK object found on window. Initializing...");
             try {
                 adControllerRef.current = window.adsgram.init({ blockId });
-                console.log("Adsgram SDK initialized.");
+                if (adControllerRef.current) {
+                    console.log("Adsgram: SDK initialized successfully.");
+                } else {
+                    console.error("Adsgram: SDK init() returned a falsy value.");
+                }
             } catch (e) {
-                console.error("Adsgram SDK initialization failed:", e);
+                console.error("Adsgram: SDK initialization threw an error:", e);
             }
         } else if (attempts >= maxAttempts) {
             clearInterval(intervalId);
-            console.error('Adsgram SDK not found on window object.');
+            console.error('Adsgram: SDK not found after 10 seconds. Initialization timed out.');
         }
     }, 100);
 
@@ -86,7 +92,7 @@ export function useAdsgram({ blockId, onError }: UseAdsgramParams) {
        // Instead, inform the user that the ad service is unavailable.
        const errorResult: ShowPromiseResult = {
            isSuccess: false,
-           description: 'Ad service is not available. Please try again later.'
+           description: 'Ad Service not available. Please try again later.'
        };
        console.error('Adsgram is not initialized. Cannot show ad.');
        onErrorRef.current?.(errorResult);
