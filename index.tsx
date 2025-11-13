@@ -19,7 +19,7 @@ root.render(
     <TonConnectUIProvider
       manifestUrl={manifestUrl}
       actionsConfiguration={{
-        twaReturnUrl: 'https://t.me/Obadiah_Bot'
+        twaReturnUrl: 'https://t.me/tapswap_bot'
       }}
     >
       <App />
