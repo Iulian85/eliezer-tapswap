@@ -1,5 +1,5 @@
-	{
-		"url": "https://eliezer-tapswap-production.up.railway.app",                       
-		"name": "Tap Coin Miner",                     
-		"iconUrl": "https://eliezer-tapswap-production.up.railway.app/elzr.png"              
-	  }
+{
+    "url": "https://ton.vote",
+    "name": "TON Vote",
+    "iconUrl": "https://ton.vote/logo.png"
+}
