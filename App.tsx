@@ -1,11 +1,11 @@
 
 
-
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { useTonConnectUI, useTonWallet } from '@tonconnect/ui-react';
-import { TonConnectButton } from './components/TonConnectButton';
-import { HomeIcon, MineIcon, FriendsIcon, EarnIcon, BoostIcon, EnergyIcon, RocketLaunchIcon, PlusIcon, MultiTapIcon, AutoMineIcon, GiftIcon, CheckBadgeIcon, TargetIcon, ClipboardIcon, ArrowUpCircleIcon, StarIcon, WalletIcon, ConnectWalletIcon } from './components/Icons';
+import { useTonConnectUI } from '@tonconnect/ui-react';
+import type { Wallet } from '@tonconnect/ui-react';
+import { HomeIcon, MineIcon, FriendsIcon, EarnIcon, BoostIcon, EnergyIcon, RocketLaunchIcon, PlusIcon, MultiTapIcon, AutoMineIcon, GiftIcon, CheckBadgeIcon, TargetIcon, ClipboardIcon, ArrowUpCircleIcon, StarIcon, WalletIcon } from './components/Icons';
 import { useAdsgram } from './hooks/useAdsgram';
+import { TonConnectButton } from './components/TonConnectButton';
 import type { ShowPromiseResult } from './types/adsgram';
 
 
@@ -76,6 +76,25 @@ type GiftBoxReward = {
 };
 
 type ActiveView = 'tap' | 'frens' | 'wallet';
+
+type SavedState = {
+    score: number;
+    energy: number;
+    lastEnergyUpdate: number;
+    tapLevel: number;
+    energyLevel: number;
+    lastDailyReward: string | null;
+    claimedTasks: TaskId[];
+    totalTaps: number;
+    lastSpin: string | null;
+    lastGiftBoxOpen: string | null;
+    claimedStreakMilestones: number[];
+    lastStreakClaimDate: string | null;
+    adsViewed: number;
+    timeSpent: number;
+    tonPurchases: number;
+    activeBoosts: ActiveBoosts;
+};
 
 // --- TypeScript Declarations for Telegram Web App ---
 declare global {
@@ -200,10 +219,6 @@ const GIFT_BOX_REWARDS: GiftBoxReward[] = [
     { type: 'boost_turbo_tap', value: 15, label: '15s Turbo Tap Boost' },
 ];
 
-// --- State persistence key ---
-const GAME_STATE_KEY = 'tapCoinMinerState';
-
-
 // --- Helper Functions ---
 const getLeagueInfo = (score: number) => {
     let currentLeague = LEAGUES[0];
@@ -222,6 +237,61 @@ const getLeagueInfo = (score: number) => {
         : 100;
 
     return { currentLeague, nextLeague, progress };
+};
+
+const getInitialState = (): SavedState => {
+    try {
+        const savedStateJSON = localStorage.getItem('tapCoinMinerState');
+        if (savedStateJSON) {
+            const savedState: Partial<SavedState> = JSON.parse(savedStateJSON);
+            const energyLevel = savedState.energyLevel || 1;
+            const maxEnergyValue = 500 + energyLevel * 500;
+            const now = Date.now();
+            const lastUpdate = savedState.lastEnergyUpdate || now;
+            const timeDiffSeconds = Math.max(0, Math.floor((now - lastUpdate) / 1000));
+            const energyToRegen = timeDiffSeconds * ENERGY_REGEN_RATE;
+            const energy = Math.min(maxEnergyValue, (savedState.energy || 1000) + energyToRegen);
+
+            return {
+                score: savedState.score || 0,
+                energy: energy,
+                lastEnergyUpdate: now,
+                tapLevel: savedState.tapLevel || 1,
+                energyLevel: energyLevel,
+                lastDailyReward: savedState.lastDailyReward || null,
+                claimedTasks: savedState.claimedTasks || [],
+                totalTaps: savedState.totalTaps || 0,
+                lastSpin: savedState.lastSpin || null,
+                lastGiftBoxOpen: savedState.lastGiftBoxOpen || null,
+                claimedStreakMilestones: savedState.claimedStreakMilestones || [],
+                lastStreakClaimDate: savedState.lastStreakClaimDate || null,
+                adsViewed: savedState.adsViewed || 0,
+                timeSpent: savedState.timeSpent || 0,
+                tonPurchases: savedState.tonPurchases || 0,
+                activeBoosts: savedState.activeBoosts || {},
+            };
+        }
+    } catch (error) {
+        console.error("Could not load game state, using defaults.", error);
+    }
+    return {
+        score: 0,
+        energy: 1000,
+        lastEnergyUpdate: Date.now(),
+        tapLevel: 1,
+        energyLevel: 1,
+        lastDailyReward: null,
+        claimedTasks: [],
+        totalTaps: 0,
+        lastSpin: null,
+        lastGiftBoxOpen: null,
+        claimedStreakMilestones: [],
+        lastStreakClaimDate: null,
+        adsViewed: 0,
+        timeSpent: 0,
+        tonPurchases: 0,
+        activeBoosts: {},
+    };
 };
 
 
@@ -886,18 +956,52 @@ const WalletView: React.FC<{
     referrals: number;
     timeSpent: number;
     tonPurchases: number;
-}> = ({ score, adsViewed, referrals, timeSpent, tonPurchases }) => {
+    connected: boolean;
+    onConnect: () => void;
+    wallet: Wallet | null;
+    showNotification: (message: string) => void;
+}> = ({ score, adsViewed, referrals, timeSpent, tonPurchases, connected, onConnect, wallet, showNotification }) => {
+    
+    const handleCopyAddress = useCallback((address: string) => {
+        navigator.clipboard.writeText(address).then(() => {
+            showNotification('Address copied to clipboard!');
+        });
+    }, [showNotification]);
+
+    if (!connected) {
+        return (
+            <div className="flex flex-col items-center justify-center h-full w-full text-white p-4 animate-fade-in">
+                <div className="w-full max-w-sm text-center bg-gray-800/50 backdrop-blur-sm rounded-xl p-8 border border-gray-700 shadow-lg">
+                    <WalletIcon className="w-16 h-16 mx-auto mb-4 text-cyan-400" />
+                    <h3 className="text-2xl font-bold mb-2">Connect Your Wallet</h3>
+                    <p className="text-gray-400 mb-6">
+                        Connect your TON wallet to see your airdrop estimations and manage your assets.
+                    </p>
+                    <button
+                        onClick={onConnect}
+                        className="w-full bg-cyan-500 text-white font-bold py-3 px-4 rounded-lg transition-transform duration-200 hover:scale-105"
+                    >
+                        Connect Wallet
+                    </button>
+                </div>
+            </div>
+        );
+    }
+    
     const AIRDROP_POOL = 17_000_000;
     const TEAM_POOL = 4_000_000;
     const TOTAL_SUPPLY = 21_000_000;
+    // This is a fictional number representing the estimated total shares of all users in the future
+    // over a 10-year period. It's used to give the user a rough estimate of their potential reward.
     const ESTIMATED_TOTAL_COMMUNITY_SHARES = 50_000_000_000_000;
 
+    // Define weights for each factor contributing to the airdrop
     const WEIGHTS = {
         SCORE: 1,
-        REFERRAL: 10000,
-        AD_VIEW: 500,
-        TIME_SPENT: 1/10,
-        TON_PURCHASE: 100000
+        REFERRAL: 10000, // Each friend is worth 10,000 points
+        AD_VIEW: 500,     // Each ad view is worth 500 points
+        TIME_SPENT: 1/10, // 1 share point for every 10 seconds
+        TON_PURCHASE: 100000 // Each TON purchase is worth 100,000 points
     };
 
     const scoreShares = score * WEIGHTS.SCORE;
@@ -921,6 +1025,27 @@ const WalletView: React.FC<{
             <div className="w-full max-w-sm">
                 <h2 className="text-3xl font-bold mb-2 text-center">Wallet</h2>
                 <p className="text-gray-400 mb-6 text-center">Your in-game assets and token information.</p>
+
+                {wallet && (
+                    <div className="w-full bg-gray-800 rounded-xl p-4 space-y-2 border border-gray-700 shadow-lg mb-6">
+                        <div className="flex justify-between items-center text-sm text-gray-400">
+                            <span>Connected Wallet</span>
+                            <span className="font-bold text-cyan-400">TON</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <span className="font-mono text-md text-white flex-grow truncate" title={wallet.account.address}>
+                                {wallet.account.address}
+                            </span>
+                            <button
+                                onClick={() => handleCopyAddress(wallet.account.address)}
+                                className="p-2 rounded-lg bg-gray-700 hover:bg-gray-600 transition-colors flex-shrink-0"
+                                aria-label="Copy wallet address"
+                            >
+                                <ClipboardIcon className="w-5 h-5 text-gray-300" />
+                            </button>
+                        </div>
+                    </div>
+                )}
 
                 <div className="w-full bg-gray-800 rounded-xl p-6 space-y-4 border border-gray-700 shadow-lg shadow-yellow-500/10 mb-6">
                     <div className="flex justify-between items-center">
@@ -969,9 +1094,8 @@ const WalletView: React.FC<{
                     </div>
                 </div>
                 
-                 <div className="text-center mt-6">
-                    <TonConnectButton />
-                    <p className="text-xs text-gray-500 mt-2">Connect a real TON wallet for future airdrops.</p>
+                 <div className="text-center mt-6 text-xs text-gray-500">
+                    <p>Connect a real TON wallet for future airdrops.</p>
                 </div>
             </div>
         </div>
@@ -980,42 +1104,62 @@ const WalletView: React.FC<{
 
 
 const App: React.FC = () => {
-    // --- TON Connect Hooks ---
-    const [tonConnectUI] = useTonConnectUI();
-    const wallet = useTonWallet();
+    const [initialState] = useState(getInitialState);
 
-    // --- State Management ---
-    const [score, setScore] = useState(0);
-    const [energy, setEnergy] = useState(1000);
+    const [score, setScore] = useState(initialState.score);
+    const [energy, setEnergy] = useState(initialState.energy);
     const [tapAnimations, setTapAnimations] = useState<TapAnimation[]>([]);
-    const [activeBoosts, setActiveBoosts] = useState<ActiveBoosts>({});
+    const [activeBoosts, setActiveBoosts] = useState<ActiveBoosts>(initialState.activeBoosts);
     const [tapStreak, setTapStreak] = useState(0);
     const [streakTimeoutId, setStreakTimeoutId] = useState<number | null>(null);
     const [isScoreAnimating, setIsScoreAnimating] = useState(false);
     const scoreRef = useRef(score);
+
     const [friends, setFriends] = useState<Friend[]>([]);
-    const [tapLevel, setTapLevel] = useState(1);
-    const [energyLevel, setEnergyLevel] = useState(1);
+    
+    // Upgrade levels
+    const [tapLevel, setTapLevel] = useState(initialState.tapLevel);
+    const [energyLevel, setEnergyLevel] = useState(initialState.energyLevel);
+
+    // Modals
     const [earnModalOpen, setEarnModalOpen] = useState(false);
     const [upgradesModalOpen, setUpgradesModalOpen] = useState(false);
     const [isGiftBoxModalOpen, setIsGiftBoxModalOpen] = useState(false);
-    const [lastDailyReward, setLastDailyReward] = useState<string | null>(null);
-    const [claimedTasks, setClaimedTasks] = useState<TaskId[]>([]);
-    const [totalTaps, setTotalTaps] = useState(0);
-    const [lastSpin, setLastSpin] = useState<string | null>(null);
+    
+    // Earn tab state
+    const [lastDailyReward, setLastDailyReward] = useState<string | null>(initialState.lastDailyReward);
+    const [claimedTasks, setClaimedTasks] = useState<TaskId[]>(initialState.claimedTasks);
+    const [totalTaps, setTotalTaps] = useState(initialState.totalTaps);
+
+    // Spin Wheel state
+    const [lastSpin, setLastSpin] = useState<string | null>(initialState.lastSpin);
     const [isSpinning, setIsSpinning] = useState(false);
     const [wheelRotation, setWheelRotation] = useState(0);
-    const [lastGiftBoxOpen, setLastGiftBoxOpen] = useState<string | null>(null);
+
+    // Daily Gift Box state
+    const [lastGiftBoxOpen, setLastGiftBoxOpen] = useState<string | null>(initialState.lastGiftBoxOpen);
     const [giftBoxReward, setGiftBoxReward] = useState<GiftBoxReward | null>(null);
-    const [claimedStreakMilestones, setClaimedStreakMilestones] = useState<number[]>([]);
-    const [lastStreakClaimDate, setLastStreakClaimDate] = useState<string | null>(null);
-    const [adsViewed, setAdsViewed] = useState(0);
-    const [timeSpent, setTimeSpent] = useState(0);
-    const [tonPurchases, setTonPurchases] = useState(0);
+
+    // Streak Rewards state
+    const [claimedStreakMilestones, setClaimedStreakMilestones] = useState<number[]>(initialState.claimedStreakMilestones);
+    const [lastStreakClaimDate, setLastStreakClaimDate] = useState<string | null>(initialState.lastStreakClaimDate);
+
+    // Airdrop calculation state
+    const [adsViewed, setAdsViewed] = useState(initialState.adsViewed);
+    const [timeSpent, setTimeSpent] = useState(initialState.timeSpent); // in seconds
+    const [tonPurchases, setTonPurchases] = useState(initialState.tonPurchases);
+
     const [activeView, setActiveView] = useState<ActiveView>('tap');
     const [notification, setNotification] = useState<string | null>(null);
+
+    // Frens state
     const [referralCode, setReferralCode] = useState('');
     const [inviteCodeInput, setInviteCodeInput] = useState('');
+
+    // TON Connect state
+    const [tonConnectUI] = useTonConnectUI();
+    const [wallet, setWallet] = useState<Wallet | null>(null);
+    const connected = !!wallet;
 
     // --- Derived State ---
     const tapValue = useMemo(() => {
@@ -1082,75 +1226,54 @@ const App: React.FC = () => {
 
     // --- Effects ---
 
-    // State Loading Effect
+     // Subscribe to wallet connection status changes
     useEffect(() => {
-        const savedStateRaw = localStorage.getItem(GAME_STATE_KEY);
-        if (savedStateRaw) {
-            try {
-                const savedState = JSON.parse(savedStateRaw);
-                const load = <T,>(key: string, setter: React.Dispatch<React.SetStateAction<T>>) => {
-                    if (savedState[key] !== undefined) setter(savedState[key]);
-                };
+        const unsubscribe = tonConnectUI.onStatusChange(walletInfo => {
+            setWallet(walletInfo);
+        });
 
-                load('score', setScore);
-                load('tapLevel', setTapLevel);
-                load('energyLevel', setEnergyLevel);
-                load('activeBoosts', setActiveBoosts);
-                load('lastDailyReward', setLastDailyReward);
-                load('claimedTasks', setClaimedTasks);
-                load('totalTaps', setTotalTaps);
-                load('lastSpin', setLastSpin);
-                load('lastGiftBoxOpen', setLastGiftBoxOpen);
-                load('claimedStreakMilestones', setClaimedStreakMilestones);
-                load('lastStreakClaimDate', setLastStreakClaimDate);
-                load('adsViewed', setAdsViewed);
-                load('timeSpent', setTimeSpent);
-                load('tonPurchases', setTonPurchases);
-                
-                const timePassed = (Date.now() - (savedState.lastSaveTime || Date.now())) / 1000;
-                const maxEnergyValue = 500 + (savedState.energyLevel || 1) * 500;
-                const regeneratedEnergy = Math.floor(timePassed * ENERGY_REGEN_RATE);
-                setEnergy(e => Math.min(maxEnergyValue, (savedState.energy || 0) + regeneratedEnergy));
-
-            } catch (error) {
-                console.error("Failed to load state from localStorage:", error);
-                localStorage.removeItem(GAME_STATE_KEY);
-            }
+        // Set initial wallet state in case it's already connected
+        if (tonConnectUI.wallet) {
+            setWallet(tonConnectUI.wallet);
         }
-    }, []);
 
-    // State Saving Effect
+        return () => {
+            unsubscribe();
+        };
+    }, [tonConnectUI]);
+
+    // Save state to localStorage whenever it changes
     useEffect(() => {
-        const debounceTimeout = setTimeout(() => {
-            const stateToSave = {
-                score,
-                energy,
-                tapLevel,
-                energyLevel,
-                activeBoosts,
-                lastDailyReward,
-                claimedTasks,
-                totalTaps,
-                lastSpin,
-                lastGiftBoxOpen,
-                claimedStreakMilestones,
-                lastStreakClaimDate,
-                adsViewed,
-                timeSpent,
-                tonPurchases,
-                lastSaveTime: Date.now()
-            };
-            localStorage.setItem(GAME_STATE_KEY, JSON.stringify(stateToSave));
-        }, 1000);
-
-        return () => clearTimeout(debounceTimeout);
-    }, [score, energy, tapLevel, energyLevel, activeBoosts, lastDailyReward, claimedTasks, totalTaps, lastSpin, lastGiftBoxOpen, claimedStreakMilestones, lastStreakClaimDate, adsViewed, timeSpent, tonPurchases]);
+        const stateToSave: SavedState = {
+            score,
+            energy,
+            lastEnergyUpdate: Date.now(),
+            tapLevel,
+            energyLevel,
+            lastDailyReward,
+            claimedTasks,
+            totalTaps,
+            lastSpin,
+            lastGiftBoxOpen,
+            claimedStreakMilestones,
+            lastStreakClaimDate,
+            adsViewed,
+            timeSpent,
+            tonPurchases,
+            activeBoosts
+        };
+        localStorage.setItem('tapCoinMinerState', JSON.stringify(stateToSave));
+    }, [
+        score, energy, tapLevel, energyLevel, lastDailyReward, claimedTasks,
+        totalTaps, lastSpin, lastGiftBoxOpen, claimedStreakMilestones,
+        lastStreakClaimDate, adsViewed, timeSpent, tonPurchases, activeBoosts
+    ]);
 
     // Score animation effect
     useEffect(() => {
         if (score > scoreRef.current) {
             setIsScoreAnimating(true);
-            const timer = setTimeout(() => setIsScoreAnimating(false), 200);
+            const timer = setTimeout(() => setIsScoreAnimating(false), 200); // Animation duration
             return () => clearTimeout(timer);
         }
         scoreRef.current = score;
@@ -1212,6 +1335,7 @@ const App: React.FC = () => {
             { id: 2, name: "Bob", score: 8200, avatar: "https://picsum.photos/40/40?random=2" },
         ]);
         
+        // Generate a mock referral code on mount
         setReferralCode('TCM-' + Math.random().toString(36).substr(2, 8).toUpperCase());
 
     }, []);
@@ -1336,10 +1460,12 @@ const App: React.FC = () => {
 
     const handleClaimInvite = () => {
         if (inviteCodeInput.trim()) {
+            // Mock logic: pretend it's a valid code
             setScore(s => s + INVITE_BONUS);
             showNotification(`Success! You got ${INVITE_BONUS.toLocaleString()} bonus coins!`);
             setInviteCodeInput('');
-            const newFriendId = friends.length + 3;
+            // Add a new friend to the list to simulate joining a squad
+            const newFriendId = friends.length + 3; // a mock id
             setFriends(f => [...f, {
                 id: newFriendId,
                 name: `Friend ${newFriendId - 2}`,
@@ -1379,8 +1505,8 @@ const App: React.FC = () => {
             setIsSpinning(true);
             setLastSpin(new Date().toISOString());
 
-            const spinDuration = 5000;
-            const randomSpins = 5 + Math.floor(Math.random() * 5);
+            const spinDuration = 5000; // 5 seconds
+            const randomSpins = 5 + Math.floor(Math.random() * 5); // 5 to 9 full spins
             const prizeIndex = Math.floor(Math.random() * WHEEL_REWARDS.length);
             const prize = WHEEL_REWARDS[prizeIndex];
             const segmentAngle = 360 / WHEEL_REWARDS.length;
@@ -1412,37 +1538,52 @@ const App: React.FC = () => {
         }
     };
 
-    const handleTonPurchase = useCallback(async () => {
-        if (!wallet) {
-            showNotification("Please connect your wallet first.");
+    const handleConnectWallet = () => {
+        if (tonConnectUI) {
             tonConnectUI.openModal();
-            return;
         }
+    };
 
+    const handleTonPurchase = async () => {
+        if (!connected || !tonConnectUI) {
+          showNotification('Please connect your TON wallet first.');
+          if (tonConnectUI) {
+              tonConnectUI.openModal();
+          }
+          return;
+        }
+      
         const transaction = {
-            validUntil: Math.floor(Date.now() / 1000) + 60, // 60 seconds
-            messages: [{
-                address: 'UQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAJKZ', // Placeholder address
-                amount: '500000000', // 0.5 TON in nanoTON
-            }],
+          validUntil: Math.floor(Date.now() / 1000) + 60, // 60 seconds
+          messages: [
+            {
+              address: "UQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABADR", // destination address, bounceable for testing
+              amount: "10000000", // 0.01 TON in nano-tons
+            },
+          ],
         };
-
+      
         try {
-            await tonConnectUI.sendTransaction(transaction);
-            setTonPurchases(p => p + 1);
-            const twentyFourHoursInMs = 24 * 60 * 60 * 1000;
-            setActiveBoosts(prev => ({
-                ...prev,
-                auto_mine: { endTime: Date.now() + twentyFourHoursInMs }
-            }));
-            showNotification('Purchase Complete! 24h Auto-Miner activated.');
-            setUpgradesModalOpen(false);
+          showNotification('Please approve the transaction in your wallet.');
+          const result = await tonConnectUI.sendTransaction(transaction);
+          
+          showNotification('Transaction sent successfully!');
+          console.log('Transaction result:', result);
+          
+          // On success, update state
+          setTonPurchases(p => p + 1);
+          const twentyFourHoursInMs = 24 * 60 * 60 * 1000;
+          setActiveBoosts(prev => ({
+            ...prev,
+            auto_mine: { endTime: Date.now() + twentyFourHoursInMs }
+          }));
+          setUpgradesModalOpen(false);
+      
         } catch (error) {
-            console.error('Transaction failed:', error);
-            showNotification('Transaction was cancelled or failed.');
+          showNotification('Transaction was cancelled or failed.');
+          console.error('Transaction error:', error);
         }
-    }, [wallet, tonConnectUI, showNotification]);
-
+    };
 
     const handleClaimStreakReward = useCallback((milestone: number) => {
         if (tapStreak >= milestone && !claimedStreakMilestones.includes(milestone)) {
@@ -1457,7 +1598,7 @@ const App: React.FC = () => {
 
 
     return (
-        <div className="bg-black/60 text-white h-screen flex flex-col font-sans overflow-hidden">
+        <div className="bg-gradient-to-b from-gray-900 via-black to-black text-white h-screen flex flex-col font-sans overflow-hidden">
              {notification && <Notification message={notification} onClose={() => setNotification(null)} />}
             <header className="w-full p-4 flex-shrink-0">
                 <div className="flex justify-between items-center gap-4">
@@ -1468,9 +1609,11 @@ const App: React.FC = () => {
                             <p className="font-bold text-lg">Miner01</p>
                         </div>
                     </div>
-                    <div className="flex items-center gap-2 text-2xl font-bold bg-black/20 px-4 py-2 rounded-full border border-gray-700">
-                        <img src="https://picsum.photos/24/24?grayscale" className="w-6 h-6 rounded-full" />
-                        <span className={`text-yellow-400 ${isScoreAnimating ? 'animate-score-pulse' : ''}`}>{Math.floor(score).toLocaleString()}</span>
+                    <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-2 text-2xl font-bold bg-black/20 px-4 py-2 rounded-full border border-gray-700">
+                            <img src="https://picsum.photos/24/24?grayscale" className="w-6 h-6 rounded-full" />
+                            <span className={`text-yellow-400 ${isScoreAnimating ? 'animate-score-pulse' : ''}`}>{Math.floor(score).toLocaleString()}</span>
+                        </div>
                     </div>
                 </div>
                 <div className="mt-4">
@@ -1515,37 +1658,21 @@ const App: React.FC = () => {
                     onClaimTask={claimTask}
                     showAdAndDo={showAdAndDo}
                 />}
-                {activeView === 'wallet' && (
-                    wallet ? (
-                        <WalletView 
-                            score={score} 
-                            adsViewed={adsViewed}
-                            referrals={friends.length}
-                            timeSpent={timeSpent}
-                            tonPurchases={tonPurchases}
-                        />
-                    ) : (
-                        <div className="flex flex-col items-center justify-center h-full w-full text-white p-4 animate-fade-in">
-                            <div className="w-full max-w-sm text-center bg-gray-900/70 backdrop-blur-md rounded-2xl p-8 border border-gray-700">
-                                <ConnectWalletIcon className="w-20 h-20 mx-auto text-cyan-400 mb-6" />
-                                <h2 className="text-3xl font-bold mb-3">Connect Your Wallet</h2>
-                                <p className="text-gray-400 mb-8 text-base">
-                                    Connect your TON wallet to see your airdrop estimations and manage your assets.
-                                </p>
-                                <button
-                                    onClick={() => tonConnectUI.openModal()}
-                                    className="w-full bg-cyan-500 text-white font-bold py-3 px-4 rounded-xl transition-transform duration-200 hover:scale-105 active:scale-100 shadow-lg shadow-cyan-500/20"
-                                >
-                                    Connect Wallet
-                                </button>
-                            </div>
-                        </div>
-                    )
-                )}
+                {activeView === 'wallet' && <WalletView 
+                    score={score} 
+                    adsViewed={adsViewed}
+                    referrals={friends.length}
+                    timeSpent={timeSpent}
+                    tonPurchases={tonPurchases}
+                    connected={connected}
+                    onConnect={handleConnectWallet}
+                    wallet={wallet}
+                    showNotification={showNotification}
+                />}
             </div>
 
-            <nav className="w-full bg-black/30 backdrop-blur-md border-t border-gray-800 grid grid-cols-5 gap-1 p-1 rounded-t-2xl flex-shrink-0">
-                <button onClick={() => setActiveView('tap')} className={`flex flex-col items-center justify-center text-center p-2 rounded-lg transition-colors duration-200 ${activeView === 'tap' ? 'bg-yellow-500 text-black' : 'text-gray-400'}`}>
+            <nav className="w-full bg-black/30 backdrop-blur-md border-t border-gray-800 grid grid-cols-5 gap-1 p-1 rounded-t-2xl">
+                <button onClick={() => setActiveView('tap')} className={`flex flex-col items-center justify-center text-center p-2 rounded-lg ${activeView === 'tap' ? 'bg-yellow-500/20 text-yellow-300' : 'text-gray-400'}`}>
                     <HomeIcon className="w-7 h-7 mb-1" />
                     <span className="text-xs font-bold">Tap</span>
                 </button>
@@ -1557,18 +1684,15 @@ const App: React.FC = () => {
                     <EarnIcon className="w-7 h-7 mb-1" />
                     <span className="text-xs font-bold">Earn</span>
                 </button>
-                <button onClick={() => setActiveView('frens')} className={`flex flex-col items-center justify-center text-center p-2 rounded-lg transition-colors duration-200 ${activeView === 'frens' ? 'bg-yellow-500 text-black' : 'text-gray-400'}`}>
+                <button onClick={() => setActiveView('frens')} className={`flex flex-col items-center justify-center text-center p-2 rounded-lg ${activeView === 'frens' ? 'bg-yellow-500/20 text-yellow-300' : 'text-gray-400'}`}>
                     <FriendsIcon className="w-7 h-7 mb-1" />
                     <span className="text-xs font-bold">Frens</span>
                 </button>
-                 <button onClick={() => setActiveView('wallet')} className={`flex flex-col items-center justify-center text-center p-2 rounded-lg transition-colors duration-200 ${activeView === 'wallet' ? 'bg-yellow-500 text-black' : 'text-gray-400'}`}>
+                 <button onClick={() => setActiveView('wallet')} className={`flex flex-col items-center justify-center text-center p-2 rounded-lg ${activeView === 'wallet' ? 'bg-yellow-500/20 text-yellow-300' : 'text-gray-400'}`}>
                     <WalletIcon className="w-7 h-7 mb-1" />
                     <span className="text-xs font-bold">Wallet</span>
                 </button>
             </nav>
-            <div className="w-full text-center py-2 text-gray-500 text-sm bg-black/30 flex-shrink-0">
-                @Obadiah_Bot
-            </div>
 
             <GiftBoxModal
                 isOpen={isGiftBoxModalOpen}
