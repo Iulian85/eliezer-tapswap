@@ -1,4 +1,5 @@
 
+
 import React from 'react';
 
 export const MineIcon: React.FC<{ className?: string }> = ({ className }) => (
@@ -108,5 +109,12 @@ export const WalletIcon: React.FC<{ className?: string }> = ({ className }) => (
     <svg className={className} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
         <path d="M18 9.75a.75.75 0 0 1 .75.75v6a.75.75 0 0 1-1.5 0v-6a.75.75 0 0 1 .75-.75Z" />
         <path fillRule="evenodd" d="M2.25 9.75A2.25 2.25 0 0 1 4.5 7.5h15A2.25 2.25 0 0 1 21.75 9.75v6A2.25 2.25 0 0 1 19.5 18h-15A2.25 2.25 0 0 1 2.25 15.75v-6ZM4.5 9a.75.75 0 0 0-.75.75v6c0 .414.336.75.75.75h15a.75.75 0 0 0 .75-.75v-6a.75.75 0 0 0-.75-.75h-15Z" clipRule="evenodd" />
+    </svg>
+);
+
+export const ConnectWalletIcon: React.FC<{ className?: string }> = ({ className }) => (
+    <svg className={className} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M4 8C4 6.89543 4.89543 6 6 6H18C19.1046 6 20 6.89543 20 8V16C20 17.1046 19.1046 18 18 18H6C4.89543 18 4 17.1046 4 16V8Z" stroke="currentColor" strokeWidth="1.5"/>
+        <path d="M15 11H17V13H15V11Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
     </svg>
 );
