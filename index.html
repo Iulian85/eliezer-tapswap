@@ -2,184 +2,125 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Tap Coin Miner</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Eliezer Rush</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <script src="https://telegram.adsgram.ai/js/adgram-sdk.js"></script>
     <script src="https://sad.adsgram.ai/js/sad.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              game: {
+                bg: '#2c1b4e',
+                panel: 'rgba(255, 255, 255, 0.1)',
+                accent: '#ff0080'
+              }
+            },
+            animation: {
+              'bounce-short': 'bounce 0.3s infinite',
+              'pulse-fast': 'pulse 1s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+              'pop': 'pop 0.3s ease-out forwards',
+              'shake': 'shake 0.5s cubic-bezier(.36,.07,.19,.97) both',
+              'particle': 'particles 0.8s ease-out forwards',
+              'confetti': 'confetti 3s ease-in-out infinite',
+              'bounce-in': 'bounce-in 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards',
+              'shimmer-sweep': 'shimmer-sweep 1s cubic-bezier(0.4, 0, 0.2, 1) forwards',
+              'settle': 'settle 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)',
+              'spin-slow': 'spin 3s linear infinite'
+            },
+            keyframes: {
+              pop: {
+                '0%': { transform: 'scale(0.5)', opacity: '0' },
+                '100%': { transform: 'scale(1)', opacity: '1' }
+              },
+              shake: {
+                '0%, 100%': { transform: 'translate3d(0, 0, 0)' },
+                '10%, 90%': { transform: 'translate3d(-1px, 0, 0)' },
+                '20%, 80%': { transform: 'translate3d(2px, 0, 0)' },
+                '30%, 50%, 70%': { transform: 'translate3d(-4px, 0, 0)' },
+                '40%, 60%': { transform: 'translate3d(4px, 0, 0)' }
+              },
+              particles: {
+                '0%': { transform: 'translate(0, 0) scale(1)', opacity: '1' },
+                '100%': { transform: 'translate(var(--tx), var(--ty)) scale(0)', opacity: '0' }
+              },
+              confetti: {
+                '0%': { transform: 'translateY(-10vh) rotate(0deg)', opacity: '1' },
+                '100%': { transform: 'translateY(110vh) rotate(720deg)', opacity: '0' }
+              },
+              'bounce-in': {
+                '0%': { transform: 'scale(0)', opacity: '0' },
+                '60%': { transform: 'scale(1.15)', opacity: '1' },
+                '100%': { transform: 'scale(1)', opacity: '1' }
+              },
+              'shimmer-sweep': {
+                '0%': { transform: 'translateX(-100%) skewX(-20deg)', opacity: '0' },
+                '10%': { opacity: '1' },
+                '100%': { transform: 'translateX(200%) skewX(-20deg)', opacity: '0' }
+              },
+              settle: {
+                '0%': { transform: 'scale(1.05) translateY(-5%)' },
+                '50%': { transform: 'scale(0.9) translateY(2%)' },
+                '100%': { transform: 'scale(0.95) translateY(0)' }
+              }
+            }
+          }
+        }
+      }
+    </script>
     <style>
       body {
-        overscroll-behavior-y: contain;
-        -webkit-user-select: none; /* Safari */
-        -ms-user-select: none; /* IE 10 and IE 11 */
-        user-select: none; /* Standard syntax */
-      }
-      @keyframes fade-up {
-        from {
-          opacity: 1;
-          transform: translateY(0) scale(1);
-        }
-        to {
-          opacity: 0;
-          transform: translateY(-80px) scale(1.5);
-        }
-      }
-      .animate-fade-up {
-        animation: fade-up 1s ease-out forwards;
-      }
-      @keyframes pulse-glow {
-        0%, 100% {
-          box-shadow: 0 0 2px #fde047, 0 0 5px #f97316, 0 0 10px #f97316;
-        }
-        50% {
-          box-shadow: 0 0 5px #fde047, 0 0 10px #f97316, 0 0 15px #ef4444;
-        }
-      }
-      .animate-pulse-glow {
-        animation: pulse-glow 2.5s infinite ease-in-out;
-      }
-      @keyframes pulse-glow-turbo {
-        0%, 100% {
-          box-shadow: 0 0 10px #fef08a, 0 0 25px #f97316, 0 0 40px #f97316;
-        }
-        50% {
-          box-shadow: 0 0 20px #fef08a, 0 0 40px #f97316, 0 0 60px #ef4444;
-        }
-      }
-      .animate-pulse-glow-turbo {
-        animation: pulse-glow-turbo 1.2s infinite ease-in-out;
-      }
-      @keyframes pulse-glow-green {
-        0%, 100% {
-          box-shadow: 0 0 3px #4ade80, 0 0 6px #22c55e, 0 0 12px #16a34a;
-        }
-        50% {
-          box-shadow: 0 0 6px #4ade80, 0 0 12px #22c55e, 0 0 18px #15803d;
-        }
-      }
-      .animate-pulse-glow-green {
-        animation: pulse-glow-green 2s infinite ease-in-out;
-      }
-
-      @keyframes pulse-glow-cyan {
-        0%, 100% {
-          box-shadow: 0 0 3px #67e8f9, 0 0 6px #22d3ee, 0 0 12px #06b6d4;
-        }
-        50% {
-          box-shadow: 0 0 6px #67e8f9, 0 0 12px #22d3ee, 0 0 18px #0891b2;
-        }
-      }
-      .animate-pulse-glow-cyan {
-        animation: pulse-glow-cyan 2s infinite ease-in-out;
-      }
-
-      @keyframes fade-in {
-        from { opacity: 0; transform: translateY(10px); }
-        to { opacity: 1; transform: translateY(0); }
-      }
-      .animate-fade-in {
-        animation: fade-in 0.5s ease-out forwards;
-      }
-
-      /* Tap and Score Animations */
-      @keyframes coin-tap {
-        0% { transform: scale(1); }
-        50% { transform: scale(0.92); }
-        100% { transform: scale(1); }
-      }
-      .animate-coin-tap {
-        animation: coin-tap 0.1s ease-in-out;
-      }
-      @keyframes score-pulse {
-        0% { transform: scale(1); }
-        50% { transform: scale(1.15); color: #ffffff; text-shadow: 0 0 10px #fef08a; }
-        100% { transform: scale(1); }
-      }
-      .animate-score-pulse {
-        animation: score-pulse 0.2s ease-out;
-      }
-
-      /* Spin Wheel Styles */
-      .wheel-container {
-        position: relative;
-        width: 250px;
-        height: 250px;
-        margin: 20px auto;
-      }
-
-      .wheel {
-        width: 100%;
-        height: 100%;
-        border-radius: 50%;
-        position: relative;
+        background: linear-gradient(135deg, #1a103c 0%, #4a1f64 100%);
+        touch-action: none; /* Prevent pull-to-refresh on mobile */
         overflow: hidden;
-        border: 8px solid #fde047;
-        transition: transform 5s cubic-bezier(0.25, 1, 0.5, 1);
-        background: conic-gradient(
-          #4f46e5 0deg 45deg,
-          #14b8a6 45deg 90deg,
-          #d97706 90deg 135deg,
-          #db2777 135deg 180deg,
-          #4f46e5 180deg 225deg,
-          #14b8a6 225deg 270deg,
-          #d97706 270deg 315deg,
-          #db2777 315deg 360deg
-        );
       }
-
-      .wheel-pointer {
-        position: absolute;
-        top: -10px;
-        left: 50%;
-        transform: translateX(-50%);
-        width: 0;
-        height: 0;
-        border-left: 15px solid transparent;
-        border-right: 15px solid transparent;
-        border-top: 30px solid #ef4444; /* Red pointer */
-        z-index: 10;
-        filter: drop-shadow(0 2px 2px rgba(0,0,0,0.5));
+      .candy-grid {
+        display: grid;
+        grid-template-columns: repeat(8, 1fr);
+        gap: 4px;
+        width: 100%;
+        max-width: 400px;
+        aspect-ratio: 1;
       }
-
-      .wheel-center {
-          position: absolute;
-          top: 50%;
-          left: 50%;
-          transform: translate(-50%, -50%);
-          width: 40px;
-          height: 40px;
-          background: #fde047;
-          border-radius: 50%;
-          border: 5px solid #b45309;
-          z-index: 11;
+      /* Glassmorphism utilities */
+      .glass {
+        background: rgba(255, 255, 255, 0.15);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.2);
       }
-
-      .wheel-label {
-        position: absolute;
-        font-weight: bold;
-        color: white;
-        font-size: 0.7rem;
-        text-shadow: 1px 1px 3px #000;
-        pointer-events: none;
-        transform: translate(-50%, -50%);
+      /* Custom Scrollbar */
+      .custom-scrollbar::-webkit-scrollbar {
+        width: 4px;
+      }
+      .custom-scrollbar::-webkit-scrollbar-track {
+        background: rgba(255, 255, 255, 0.05);
+      }
+      .custom-scrollbar::-webkit-scrollbar-thumb {
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 4px;
       }
     </style>
   <script type="importmap">
 {
   "imports": {
-    "react": "https://esm.sh/react@18.3.1",
-    "react-dom/client": "https://esm.sh/react-dom@18.3.1/client",
-    "react-dom/": "https://esm.sh/react-dom@18.3.1/",
-    "react/": "https://esm.sh/react@18.3.1/",
-    "@tonconnect/ui-react": "https://esm.sh/@tonconnect/ui-react@2.0.5?deps=react@18.3.1"
+    "react": "https://esm.sh/react@18.2.0",
+    "react/": "https://esm.sh/react@18.2.0/",
+    "react-dom": "https://esm.sh/react-dom@18.2.0",
+    "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+    "lucide-react": "https://esm.sh/lucide-react@0.454.0?external=react,react-dom",
+    "@tonconnect/ui-react": "https://esm.sh/@tonconnect/ui-react@2.0.0?external=react,react-dom",
+    "@tonconnect/sdk": "https://esm.sh/@tonconnect/sdk@3.0.0",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/"
   }
 }
 </script>
 <link rel="stylesheet" href="/index.css">
 </head>
-  <body class="bg-black">
-    <div id="root"></div>
-    <script type="module" src="/index.tsx"></script>
-  </body>
+  <body class="text-white antialiased h-screen flex flex-col items-center justify-center">
+    <div id="root" class="w-full h-full flex flex-col"></div>
+  <script type="module" src="/index.tsx"></script>
+</body>
 </html>

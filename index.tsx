@@ -1,7 +1,8 @@
+
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import { TonConnectUIProvider } from '@tonconnect/ui-react';
 import App from './App';
+import { TonConnectUIProvider } from '@tonconnect/ui-react';
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
@@ -9,19 +10,10 @@ if (!rootElement) {
 }
 
 const root = ReactDOM.createRoot(rootElement);
-
-// The manifestUrl is a required parameter for the TonConnectUIProvider.
-// It should point to the tonconnect-manifest.json file hosted on your server.
-const manifestUrl = new URL('/tonconnect-manifest.json', window.location.origin).toString();
-
 root.render(
   <React.StrictMode>
-    <TonConnectUIProvider
-      manifestUrl={manifestUrl}
-      actionsConfiguration={{
-        twaReturnUrl: 'https://t.me/Obadiah_Bot'
-      }}
-    >
+    {/* Using a public manifest for demonstration purposes. In production, host your own tonconnect-manifest.json */}
+    <TonConnectUIProvider manifestUrl="https://ton-connect.github.io/demo-dapp-with-react-ui/tonconnect-manifest.json">
       <App />
     </TonConnectUIProvider>
   </React.StrictMode>
