@@ -17,14 +17,15 @@ const port = process.env.PORT || 3000;
 // Middleware
 app.use(cors());
 app.use(express.json());
+// Serve static files from the React build directory
 app.use(express.static(path.join(__dirname, 'dist')));
 
 // Database Connection
-// Railway provides DATABASE_URL automatically
+// Railway automatically injects DATABASE_URL into process.env
 const pool = new pg.Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: {
-    rejectUnauthorized: false // Required for Railway/Neon connections
+    rejectUnauthorized: false // Required for Railway connections
   }
 });
 
@@ -69,7 +70,8 @@ app.post('/api/user/init', async (req, res) => {
                          'INSERT INTO friends (user_id, friend_telegram_id, friend_name) VALUES ($1, $2, $3)',
                          [referrerId, telegramId, username]
                      );
-                     // Update referrer stats? (Optional logic handled in game save usually)
+                     
+                     // Optionally reward referrer immediately here, or handle it via a claim system
                  }
             }
         } else {
@@ -78,12 +80,13 @@ app.post('/api/user/init', async (req, res) => {
 
         // Fetch full state
         const stateRes = await pool.query('SELECT * FROM game_state WHERE user_id = $1', [userId]);
-        const user = userRes.rows.length > 0 ? userRes.rows[0] : null;
+        const user = userRes.rows.length > 0 ? userRes.rows[0] : (await pool.query('SELECT * FROM users WHERE id = $1', [userId])).rows[0];
 
         res.json({ success: true, user, gameState: stateRes.rows[0], isNew });
     } catch (err) {
-        console.error(err);
-        res.status(500).json({ error: 'Database error' });
+        console.error("DB Init Error:", err);
+        // Fallback for dev/offline: return null to let frontend use local storage
+        res.status(500).json({ error: 'Database error', details: err.message });
     }
 });
 
@@ -126,7 +129,7 @@ app.post('/api/game/save', async (req, res) => {
 
         res.json({ success: true });
     } catch (err) {
-        console.error(err);
+        console.error("DB Save Error:", err);
         res.status(500).json({ error: 'Save failed' });
     }
 });

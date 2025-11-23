@@ -181,7 +181,7 @@ const App: React.FC = () => {
   const [tonConnectUI] = useTonConnectUI();
   const wallet = useTonWallet();
   const [telegramName, setTelegramName] = useState<string>("You");
-  const [telegramId, setTelegramId] = useState<number | null>(null); // New ID state
+  const [telegramId, setTelegramId] = useState<number | null>(null);
 
   const [board, setBoard] = useState<Board>([]);
   const [score, setScore] = useState(0);
@@ -222,7 +222,6 @@ const App: React.FC = () => {
   // Booster State
   const [preGameBoosters, setPreGameBoosters] = useState<{ bomb: boolean, extraMoves: boolean }>({ bomb: false, extraMoves: false });
   const [activeBooster, setActiveBooster] = useState<'BOMB' | null>(null);
-  const [activeTooltip, setActiveTooltip] = useState<string | null>(null); 
   const [shuffleAvailable, setShuffleAvailable] = useState(true); 
 
   // Visual Effects State
@@ -234,8 +233,6 @@ const App: React.FC = () => {
   const [isShuffling, setIsShuffling] = useState(false);
   const [bombEffectIndex, setBombEffectIndex] = useState<number | null>(null);
   const [isCelebrating, setIsCelebrating] = useState(false);
-  
-  // New Combo Visuals
   const [comboVisuals, setComboVisuals] = useState<{ type: 'MEGA_BOOM' | 'SUPER_STRIPES' | 'RAINBOW_BLAST', active: boolean } | null>(null);
 
   // Storage & UI State
@@ -247,12 +244,11 @@ const App: React.FC = () => {
 
   // ADSGRAM Integration Helper
   const showAd = useCallback((onComplete: () => void) => {
-    // CRITICAL FIX: Check if we are in Telegram environment before initializing ads
+    // Check if we are in Telegram environment before initializing ads
     const isTelegram = (window as any).Telegram?.WebApp?.initData;
 
     if (!isTelegram) {
         console.log('Not in Telegram environment, skipping ad show.');
-        // Mock success for browser testing
         setUserStats(prev => ({...prev, adsViewed: prev.adsViewed + 1}));
         onComplete();
         return;
@@ -261,24 +257,19 @@ const App: React.FC = () => {
     const Adsgram = (window as any).Adsgram;
     if (Adsgram) {
         try {
-            // Attempt init inside a try block
             const AdController = Adsgram.init({ blockId: "int-17151" });
             AdController.show().then((result: any) => {
-                // Ad finished or skipped, proceed with game
                 setUserStats(prev => ({...prev, adsViewed: prev.adsViewed + 1}));
                 onComplete();
             }).catch((error: any) => {
-                // Ad failed to load or show, proceed anyway so user isn't blocked
                 console.warn("Ad show failed:", error);
                 onComplete();
             });
         } catch (e) {
-             // Ad init failed (e.g. missing launch params because not in Telegram)
-             console.warn("Adsgram init failed - likely not in Telegram:", e);
+             console.warn("Adsgram init failed:", e);
              onComplete();
         }
     } else {
-        // Adsgram not loaded or not available, proceed
         console.warn("Adsgram script not loaded.");
         onComplete();
     }
@@ -296,7 +287,6 @@ const App: React.FC = () => {
               setTelegramId(user.id);
               
               // SYNC WITH SERVER
-              // We grab launch params to see if there is a start param (referral)
               const startParam = tg.initDataUnsafe.start_param;
 
               api.initUser(user.id, user.first_name, startParam).then(data => {
@@ -325,8 +315,30 @@ const App: React.FC = () => {
                       if (data.user && data.user.referral_code) {
                            setUserStats(prev => ({ ...prev, referralCode: data.user.referral_code }));
                       }
+                  } else {
+                      // Fallback to Local Load if DB fails
+                      console.log("Using Local Storage Fallback");
+                      const saved = loadGame();
+                      if (saved) {
+                         setInventory(saved.inventory || DEFAULT_INVENTORY);
+                         setUserStats(prev => ({ ...DEFAULT_STATS, ...(saved.stats || {}) }));
+                         setLastDailyCompleted(saved.lastDailyCompleted || null);
+                         if (saved.levelIndex >= 0) {
+                             setCurrentLevelIndex(saved.levelIndex);
+                         }
+                      }
                   }
               });
+          }
+      } else {
+          // Dev Mode / Browser Fallback
+          const saved = loadGame();
+          if (saved) {
+              if (saved.board && saved.board.length > 0) setHasSave(true);
+              setInventory(saved.inventory || DEFAULT_INVENTORY);
+              setUserStats(prev => ({ ...DEFAULT_STATS, ...(saved.stats || {}) }));
+              setLastDailyCompleted(saved.lastDailyCompleted || null);
+              if (saved.levelIndex >= 0) setCurrentLevelIndex(saved.levelIndex);
           }
       }
   }, []);
@@ -339,23 +351,11 @@ const App: React.FC = () => {
     }
   }, [userStats.referralCode]);
 
-  // Load initial persistence data (Local Fallback)
+  // Load initial persistence data (Local Fallback for Save Game Board)
   useEffect(() => {
     const saved = loadGame();
-    if (saved) {
-        if (saved.board && saved.board.length > 0) {
-            setHasSave(true);
-        }
-        // Only load inventory/stats from local if we didn't get them from DB sync yet
-        // (Simplified logic: always load local, DB sync overwrites if successful later)
-        setInventory(saved.inventory || DEFAULT_INVENTORY);
-        setUserStats(prev => {
-           return { ...DEFAULT_STATS, ...(saved.stats || {}) };
-        });
-        setLastDailyCompleted(saved.lastDailyCompleted || null);
-        if (saved.levelIndex >= 0) {
-            setCurrentLevelIndex(saved.levelIndex);
-        }
+    if (saved && saved.board && saved.board.length > 0) {
+        setHasSave(true);
     }
     setHighScores(getHighScores());
   }, []);
@@ -665,6 +665,9 @@ const App: React.FC = () => {
       }
   }, [gameState, playMode, score, inventory, currentLevelIndex, lastDailyCompleted, telegramId]);
 
+  // [Rest of App.tsx implementation remains the same...]
+  // The full content must be provided in the change block, so I will paste the rest of the file logic here to ensure it's complete.
+  
   const handleRedeemReferral = (code: string) => {
       if (code === userStats.referralCode) {
           return { success: false, message: "Cannot use your own code" };
@@ -1032,9 +1035,8 @@ const App: React.FC = () => {
         return;
     }
 
-    // Prepare transaction
     const transaction = {
-        validUntil: Math.floor(Date.now() / 1000) + 60, // 60 sec validity
+        validUntil: Math.floor(Date.now() / 1000) + 60,
         messages: [
             {
                 address: TREASURY_WALLET,
@@ -1046,7 +1048,6 @@ const App: React.FC = () => {
     try {
         await tonConnectUI.sendTransaction(transaction);
         
-        // If successful
         const newInventory = {
           ...inventory,
           boosters: {
@@ -1225,7 +1226,6 @@ const App: React.FC = () => {
         </div>
       )}
 
-      {/* FULL SCREEN COMBO VISUALS OVERLAY */}
       <ComboVisualsOverlay 
         active={comboVisuals?.active || false} 
         type={comboVisuals?.type || null} 
@@ -1584,7 +1584,6 @@ const App: React.FC = () => {
                         onClick={() => handleUseInGameBooster('extraMoves')} 
                         color="blue"
                     />
-                    {/* Dedicated Shuffle Button */}
                     <BoosterButton 
                         icon={Shuffle} 
                         onClick={handleManualShuffle} 
