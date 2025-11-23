@@ -45,7 +45,7 @@ const initDB = async () => {
 
     await client.query('BEGIN');
 
-    // Create Users Table - Ensure telegram_id is BIGINT
+    // Create Users Table
     await client.query(`
       CREATE TABLE IF NOT EXISTS users (
         id SERIAL PRIMARY KEY,
@@ -57,6 +57,14 @@ const initDB = async () => {
         created_at TIMESTAMP DEFAULT NOW()
       );
     `);
+
+    // SCHEMA MIGRATION: Ensure telegram_id is BIGINT (Fix for existing tables created with INTEGER)
+    try {
+        await client.query('ALTER TABLE users ALTER COLUMN telegram_id TYPE BIGINT');
+        console.log("Checked/Updated users.telegram_id to BIGINT");
+    } catch (e) {
+        console.log("Migration check for users table skipped/failed (likely ok):", e.message);
+    }
 
     // Create Game State Table
     await client.query(`
@@ -89,6 +97,13 @@ const initDB = async () => {
       );
     `);
 
+    // SCHEMA MIGRATION: Ensure friend_telegram_id is BIGINT
+    try {
+        await client.query('ALTER TABLE friends ALTER COLUMN friend_telegram_id TYPE BIGINT');
+    } catch (e) {
+         // Ignore
+    }
+
     // Create Purchases Table
     await client.query(`
       CREATE TABLE IF NOT EXISTS purchases (
@@ -113,7 +128,11 @@ const initDB = async () => {
 // Start Server & Init DB
 app.listen(port, () => {
     console.log(`Server running on port ${port}`);
-    initDB();
+    if (process.env.DATABASE_URL) {
+        initDB();
+    } else {
+        console.error("❌ DATABASE_URL environment variable is missing! Check Railway Variables.");
+    }
 });
 
 
@@ -125,20 +144,25 @@ app.post('/api/user/init', async (req, res) => {
 
     const { telegramId, username, referralCode } = req.body;
     
+    // Ensure telegramId is present
     if (!telegramId) {
         console.error('Missing telegramId in request');
         return res.status(400).json({ error: 'Missing telegramId' });
     }
 
+    // Convert to string to ensure safe handling, though PG handles it. 
+    // Mostly just validation.
+    const tid = String(telegramId);
+
     try {
         // Check if user exists
-        const userRes = await pool.query('SELECT * FROM users WHERE telegram_id = $1', [telegramId]);
+        const userRes = await pool.query('SELECT * FROM users WHERE telegram_id = $1', [tid]);
         
         let userId;
         let isNew = false;
 
         if (userRes.rows.length === 0) {
-            console.log(`Creating new user: ${username} (${telegramId})`);
+            console.log(`Creating new user: ${username} (${tid})`);
             
             // Create new user
             const myRefCode = 'ELZR-' + Math.random().toString(36).substring(2, 8).toUpperCase();
@@ -146,7 +170,7 @@ app.post('/api/user/init', async (req, res) => {
             try {
                 const insertRes = await pool.query(
                     'INSERT INTO users (telegram_id, username, referral_code) VALUES ($1, $2, $3) RETURNING id',
-                    [telegramId, username, myRefCode]
+                    [tid, username, myRefCode]
                 );
                 userId = insertRes.rows[0].id;
                 isNew = true;
@@ -175,7 +199,7 @@ app.post('/api/user/init', async (req, res) => {
                      try {
                         await pool.query(
                             'INSERT INTO friends (user_id, friend_telegram_id, friend_name) VALUES ($1, $2, $3)',
-                            [referrerId, telegramId, username]
+                            [referrerId, tid, username]
                         );
                         
                         await pool.query(`
@@ -189,7 +213,7 @@ app.post('/api/user/init', async (req, res) => {
                  }
             }
         } else {
-            console.log(`User found: ${username} (${telegramId})`);
+            console.log(`User found: ${username} (${tid})`);
             userId = userRes.rows[0].id;
         }
 
