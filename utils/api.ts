@@ -1,9 +1,5 @@
 
 // Frontend Client for the Backend API
-// This communicates with server.js
-
-// In production (Railway), API is same domain. In dev, we might need proxy or full URL.
-// Since we serve static files from server.js in prod, relative path '/api' works perfectly.
 const API_URL = '/api'; 
 
 export const api = {
@@ -24,15 +20,15 @@ export const api = {
 
     saveGame: async (telegramId: number, saveData: any) => {
         try {
-            // We only send relevant cloud data to match the DB schema
             const payload = {
                 telegramId,
                 state: {
-                    levelIndex: saveData.levelIndex >= 0 ? saveData.levelIndex + 1 : 1, // Store as 1-based index in DB
+                    levelIndex: saveData.levelIndex >= 0 ? saveData.levelIndex + 1 : 1,
                     totalScore: saveData.stats.totalScore,
                     totalTimePlayed: saveData.stats.totalTimePlayed,
                     adsViewed: saveData.stats.adsViewed,
-                    lastDailyCompleted: saveData.lastDailyCompleted
+                    lastDailyCompleted: saveData.lastDailyCompleted,
+                    tonPurchases: saveData.stats.tonPurchases // Send this for update
                 },
                 inventory: saveData.inventory
             };
@@ -44,6 +40,18 @@ export const api = {
             });
         } catch (e) {
             console.error("Save Error:", e);
+        }
+    },
+
+    recordPurchase: async (telegramId: number, item: string, cost: number) => {
+        try {
+            await fetch(`${API_URL}/shop/purchase`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ telegramId, item, cost })
+            });
+        } catch (e) {
+            console.error("Purchase Record Error:", e);
         }
     },
 
