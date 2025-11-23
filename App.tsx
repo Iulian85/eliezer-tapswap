@@ -13,6 +13,7 @@ import {
   SpecialEventType
 } from './utils/boardUtils';
 import { saveGame, loadGame, hasSavedGame, getHighScores, saveHighScoreEntry, getLeaderboard } from './utils/storage';
+import { api } from './utils/api'; // IMPORT API
 import { generateDailyLevel, getTodayDateString } from './utils/dailyChallenge';
 import { LEVELS, SHOP_PRICES, TREASURY_WALLET } from './constants';
 import GameBoard, { ActiveEffect } from './components/GameBoard';
@@ -180,6 +181,7 @@ const App: React.FC = () => {
   const [tonConnectUI] = useTonConnectUI();
   const wallet = useTonWallet();
   const [telegramName, setTelegramName] = useState<string>("You");
+  const [telegramId, setTelegramId] = useState<number | null>(null); // New ID state
 
   const [board, setBoard] = useState<Board>([]);
   const [score, setScore] = useState(0);
@@ -282,19 +284,54 @@ const App: React.FC = () => {
     }
   }, []);
 
-  // Initialize Telegram User
+  // Initialize Telegram User and Sync with Database
   useEffect(() => {
       const tg = (window as any).Telegram?.WebApp;
       if (tg) {
           tg.ready();
           tg.expand();
-          if (tg.initDataUnsafe?.user?.first_name) {
-              setTelegramName(tg.initDataUnsafe.user.first_name);
+          if (tg.initDataUnsafe?.user) {
+              const user = tg.initDataUnsafe.user;
+              setTelegramName(user.first_name);
+              setTelegramId(user.id);
+              
+              // SYNC WITH SERVER
+              // We grab launch params to see if there is a start param (referral)
+              const startParam = tg.initDataUnsafe.start_param;
+
+              api.initUser(user.id, user.first_name, startParam).then(data => {
+                  if (data && data.success) {
+                      if (data.gameState) {
+                          // Load state from DB
+                          setUserStats(prev => ({
+                              ...prev,
+                              totalScore: parseInt(data.gameState.total_score || '0'),
+                              totalTimePlayed: data.gameState.total_time_played || 0,
+                              adsViewed: data.gameState.ads_viewed || 0
+                          }));
+                          setInventory(prev => ({
+                              ...prev,
+                              coins: data.gameState.coins || 0,
+                              boosters: {
+                                  bomb: data.gameState.bomb_boosters || 1,
+                                  extraMoves: data.gameState.extra_moves_boosters || 1,
+                                  shuffle: data.gameState.shuffle_boosters || 1
+                              }
+                          }));
+                          setCurrentLevelIndex(Math.max(0, (data.gameState.current_level || 1) - 1));
+                          setLastDailyCompleted(data.gameState.last_daily_completed);
+                      }
+                      
+                      if (data.user && data.user.referral_code) {
+                           setUserStats(prev => ({ ...prev, referralCode: data.user.referral_code }));
+                      }
+                  }
+              });
           }
       }
   }, []);
 
-  // Initialize Referral Code if missing
+  // Initialize Referral Code if missing (Local Fallback)
   useEffect(() => {
     if (!userStats.referralCode) {
         const randomCode = 'R-' + Math.random().toString(36).substring(2, 8).toUpperCase();
@@ -302,16 +339,17 @@ const App: React.FC = () => {
     }
   }, [userStats.referralCode]);
 
-  // Load initial persistence data
+  // Load initial persistence data (Local Fallback)
   useEffect(() => {
     const saved = loadGame();
     if (saved) {
         if (saved.board && saved.board.length > 0) {
             setHasSave(true);
         }
+        // Only load inventory/stats from local if we didn't get them from DB sync yet
+        // (Simplified logic: always load local, DB sync overwrites if successful later)
         setInventory(saved.inventory || DEFAULT_INVENTORY);
         setUserStats(prev => {
-           // Merge loaded stats with potentially new default fields (like purchaseHistory)
            return { ...DEFAULT_STATS, ...(saved.stats || {}) };
         });
         setLastDailyCompleted(saved.lastDailyCompleted || null);
@@ -322,11 +360,36 @@ const App: React.FC = () => {
     setHighScores(getHighScores());
   }, []);
 
-  // Update Leaderboard when opened
+  // Update Leaderboard when opened (Fetch from API)
   useEffect(() => {
       if (showLeaderboard) {
-          const data = getLeaderboard(userStats, currentLevelIndex + 1, telegramName);
-          setLeaderboardData(data);
+          // Try API first
+          api.getLeaderboard().then(data => {
+              if (data && data.length > 0) {
+                   // Map API data to UI format
+                   const entries: LeaderboardEntry[] = data.map((d: any, i: number) => ({
+                       rank: i + 1,
+                       name: d.username,
+                       score: parseInt(d.total_score),
+                       level: d.current_level,
+                       isUser: d.username === telegramName
+                   }));
+                   
+                   const userEntry = entries.find(e => e.isUser) || {
+                       rank: 999,
+                       name: telegramName,
+                       score: userStats.totalScore,
+                       level: currentLevelIndex + 1,
+                       isUser: true
+                   };
+                   
+                   setLeaderboardData({ top10: entries, userEntry });
+              } else {
+                   // Fallback to Mock
+                   const data = getLeaderboard(userStats, currentLevelIndex + 1, telegramName);
+                   setLeaderboardData(data);
+              }
+          });
       }
   }, [showLeaderboard, userStats.totalScore, currentLevelIndex, telegramName]);
 
@@ -384,7 +447,8 @@ const App: React.FC = () => {
   const handleSaveGame = () => {
     if (isProcessing || gameState !== 'PLAYING') return;
     
-    const success = saveGame({
+    // Save Local
+    const gameData = {
       board,
       score,
       moves,
@@ -395,12 +459,17 @@ const App: React.FC = () => {
       inventory,
       stats: userStats,
       lastDailyCompleted
-    });
-
-    if (success) {
-      setHasSave(true);
-      showToast("Game Saved!");
+    };
+    
+    saveGame(gameData);
+    setHasSave(true);
+    
+    // Save Cloud
+    if (telegramId) {
+        api.saveGame(telegramId, gameData);
     }
+
+    showToast("Game Saved!");
   };
 
   const handleLoadGame = () => {
@@ -556,10 +625,12 @@ const App: React.FC = () => {
           };
           setUserStats(newStats);
 
+          let newInv = inventory;
+
           if (playMode === 'DAILY') {
               const today = getTodayDateString();
               if (lastDailyCompleted !== today) {
-                  const newInventory = {
+                  newInv = {
                       ...inventory,
                       coins: inventory.coins + 100,
                       boosters: {
@@ -567,55 +638,32 @@ const App: React.FC = () => {
                           bomb: inventory.boosters.bomb + 1
                       }
                   };
-                  setInventory(newInventory);
+                  setInventory(newInv);
                   setLastDailyCompleted(today);
-                  
-                  saveGame({
-                      board: [],
-                      score: 0,
-                      moves: 0,
-                      timeLeft: 0,
-                      levelIndex: currentLevelIndex,
-                      goalProgress: {},
-                      timestamp: Date.now(),
-                      inventory: newInventory,
-                      stats: newStats,
-                      lastDailyCompleted: today
-                  });
-
                   showToast("Daily Reward: +100 Coins & 1 Bomb!");
-              } else {
-                  // Save without daily reward
-                  saveGame({
-                    board: [],
-                    score: 0,
-                    moves: 0,
-                    timeLeft: 0,
-                    levelIndex: currentLevelIndex,
-                    goalProgress: {},
-                    timestamp: Date.now(),
-                    inventory: inventory,
-                    stats: newStats,
-                    lastDailyCompleted: lastDailyCompleted
-                });
               }
-          } else {
-              // Regular level save
-              saveGame({
+          }
+          
+          // Save Full State (Local + Cloud)
+          const saveData = {
                 board: [],
                 score: 0,
                 moves: 0,
                 timeLeft: 0,
-                levelIndex: currentLevelIndex + 1, // Prepare next level
+                levelIndex: playMode === 'CAMPAIGN' ? currentLevelIndex + 1 : currentLevelIndex,
                 goalProgress: {},
                 timestamp: Date.now(),
-                inventory: inventory,
+                inventory: newInv,
                 stats: newStats,
-                lastDailyCompleted: lastDailyCompleted
-            });
+                lastDailyCompleted: playMode === 'DAILY' ? getTodayDateString() : lastDailyCompleted
+          };
+          
+          saveGame(saveData);
+          if (telegramId) {
+              api.saveGame(telegramId, saveData);
           }
       }
-  }, [gameState, playMode, score, inventory, currentLevelIndex, lastDailyCompleted]);
+  }, [gameState, playMode, score, inventory, currentLevelIndex, lastDailyCompleted, telegramId]);
 
   const handleRedeemReferral = (code: string) => {
       if (code === userStats.referralCode) {
@@ -645,14 +693,16 @@ const App: React.FC = () => {
               ...prev,
               redeemedReferralCode: code
           }));
-
-          const mockFriend: Friend = {
-              id: Math.random().toString(36).substr(2, 9),
-              name: `New Fren (${code.substring(0, 3)})`,
-              bonusEarned: 100,
-              date: new Date().toLocaleDateString()
-          };
           
+          // Trigger save to lock it in
+          const saveData = {
+             board: [], score: 0, moves: 0, timeLeft: 0, levelIndex: currentLevelIndex, goalProgress: {}, timestamp: Date.now(),
+             inventory: { ...inventory, coins: inventory.coins + bonusCoins, boosters: { ...inventory.boosters, bomb: inventory.boosters.bomb + bonusBomb } },
+             stats: { ...userStats, redeemedReferralCode: code }, lastDailyCompleted
+          };
+          saveGame(saveData);
+          if (telegramId) api.saveGame(telegramId, saveData);
+
           return { success: true, message: `Redeemed! +${bonusCoins} Coins` };
       }
 
@@ -938,6 +988,18 @@ const App: React.FC = () => {
             boosters: { ...prev.boosters, bomb: Math.max(0, prev.boosters.bomb - 1) }
         }));
         
+        // Save usage
+        const newInv = {
+            ...inventory,
+            boosters: { ...inventory.boosters, bomb: Math.max(0, inventory.boosters.bomb - 1) }
+        };
+        const saveData = {
+            board, score, moves, timeLeft, levelIndex: currentLevelIndex, goalProgress, timestamp: Date.now(),
+            inventory: newInv, stats: userStats, lastDailyCompleted
+        };
+        saveGame(saveData);
+        if (telegramId) api.saveGame(telegramId, saveData);
+        
         setTimeout(() => {
             const newBoard = [...board];
             newBoard[index] = { ...targetCandy, type: CandyType.Bomb, isNew: true };
@@ -962,7 +1024,7 @@ const App: React.FC = () => {
         handleSwipe(selectedCandy, index);
       }
     }
-  }, [selectedCandy, handleSwipe, isProcessing, gameState, activeBooster, board]);
+  }, [selectedCandy, handleSwipe, isProcessing, gameState, activeBooster, board, inventory, telegramId, userStats]);
 
   const handleBuyBooster = async (item: 'bomb' | 'extraMoves' | 'shuffle', cost: number) => {
     if (!wallet) {
@@ -985,13 +1047,14 @@ const App: React.FC = () => {
         await tonConnectUI.sendTransaction(transaction);
         
         // If successful
-        setInventory(prev => ({
-          ...prev,
+        const newInventory = {
+          ...inventory,
           boosters: {
-            ...prev.boosters,
-            [item]: prev.boosters[item] + 1
+            ...inventory.boosters,
+            [item]: inventory.boosters[item] + 1
           },
-        }));
+        };
+        setInventory(newInventory);
 
         setUserStats(prev => {
             const itemName = item === 'bomb' ? 'Bomb' : item === 'extraMoves' ? '+5 Moves' : 'Shuffle';
@@ -1008,8 +1071,7 @@ const App: React.FC = () => {
                 purchaseHistory: [newRecord, ...prev.purchaseHistory] // Add to history
             };
             
-            // Save immediately so purchase stats are not lost on reload
-            saveGame({
+            const saveData = {
                 board,
                 score,
                 moves,
@@ -1017,16 +1079,14 @@ const App: React.FC = () => {
                 levelIndex: currentLevelIndex,
                 goalProgress,
                 timestamp: Date.now(),
-                inventory: {
-                    ...inventory,
-                    boosters: {
-                        ...inventory.boosters,
-                        [item]: inventory.boosters[item] + 1
-                    }
-                },
+                inventory: newInventory,
                 stats: newStats,
                 lastDailyCompleted
-            });
+            };
+            
+            saveGame(saveData);
+            if (telegramId) api.saveGame(telegramId, saveData);
+            
             return newStats;
         });
 
@@ -1060,13 +1120,22 @@ const App: React.FC = () => {
             setShuffleAvailable(false);
             showToast("Board Shuffled!");
         } else {
-             setInventory(prev => ({
-                ...prev,
+             const newInv = {
+                ...inventory,
                 boosters: {
-                    ...prev.boosters,
-                    shuffle: Math.max(0, prev.boosters.shuffle - 1)
+                    ...inventory.boosters,
+                    shuffle: Math.max(0, inventory.boosters.shuffle - 1)
                 }
-            }));
+            };
+            setInventory(newInv);
+            // Save state
+            const saveData = {
+                board, score, moves, timeLeft, levelIndex: currentLevelIndex, goalProgress, timestamp: Date.now(),
+                inventory: newInv, stats: userStats, lastDailyCompleted
+            };
+            saveGame(saveData);
+            if (telegramId) api.saveGame(telegramId, saveData);
+            
             showToast("Board Shuffled!");
         }
     }, 1200);
@@ -1080,13 +1149,21 @@ const App: React.FC = () => {
 
       if (type === 'extraMoves') {
           setMoves(m => m + 5);
-          setInventory(prev => ({
-              ...prev,
-              boosters: { ...prev.boosters, extraMoves: prev.boosters.extraMoves - 1 }
-          }));
+          const newInv = {
+              ...inventory,
+              boosters: { ...inventory.boosters, extraMoves: inventory.boosters.extraMoves - 1 }
+          };
+          setInventory(newInv);
           setTriggerMovesAnim(true);
           setTimeout(() => setTriggerMovesAnim(false), 800);
           showToast("+5 Moves Added!");
+          
+          const saveData = {
+                board, score, moves: moves + 5, timeLeft, levelIndex: currentLevelIndex, goalProgress, timestamp: Date.now(),
+                inventory: newInv, stats: userStats, lastDailyCompleted
+          };
+          saveGame(saveData);
+          if (telegramId) api.saveGame(telegramId, saveData);
           return;
       }
       
