@@ -22,7 +22,7 @@ import { CelebrationOverlay } from './components/CelebrationOverlay';
 import { ShopModal } from './components/ShopModal';
 import { WalletModal } from './components/WalletModal';
 import { FrensModal } from './components/FrensModal';
-import { RotateCcw, Trophy, Move, Play, ChevronRight, Lock, CheckCircle, Zap, Save, Download, Clock, Calendar, Coins, Target, Plus, ShoppingBag, Shuffle, BarChart3, Home, RefreshCw, X, Loader, HelpCircle, Info, Sparkles, Crosshair, Bomb, Disc, Wallet, Users, User, Smartphone } from 'lucide-react';
+import { RotateCcw, Trophy, Move, Play, ChevronRight, Lock, CheckCircle, Zap, Save, Download, Clock, Calendar, Coins, Target, Plus, ShoppingBag, Shuffle, BarChart3, Home, RefreshCw, X, Loader, HelpCircle, Info, Sparkles, Crosshair, Bomb, Disc, Wallet, Users, User, Smartphone, Bug } from 'lucide-react';
 import { TonConnectButton, useTonWallet, useTonConnectUI } from '@tonconnect/ui-react';
 
 // Utility to convert TON to Nanotons
@@ -114,7 +114,7 @@ const App: React.FC = () => {
   const wallet = useTonWallet();
   const [telegramName, setTelegramName] = useState<string>("Loading...");
   const [telegramId, setTelegramId] = useState<number | null>(null);
-  const [isTelegramUser, setIsTelegramUser] = useState<boolean>(true); // Default true, set to false if check fails
+  const [isTelegramUser, setIsTelegramUser] = useState<boolean>(true); 
 
   const [board, setBoard] = useState<Board>([]);
   const [score, setScore] = useState(0);
@@ -173,7 +173,6 @@ const App: React.FC = () => {
   const showAd = useCallback((onComplete: () => void) => {
     const isTelegram = (window as any).Telegram?.WebApp?.initData;
     if (!isTelegram) {
-        // Should not happen with strict check, but safe fallback
         setUserStats(prev => ({...prev, adsViewed: prev.adsViewed + 1}));
         onComplete();
         return;
@@ -197,89 +196,80 @@ const App: React.FC = () => {
     }
   }, []);
 
-  // Initialize User and Sync with Database (STRICT TELEGRAM)
+  // Strict Telegram Login
   useEffect(() => {
       const initApp = async () => {
           const tg = (window as any).Telegram?.WebApp;
           
-          if (!tg) {
-              setIsTelegramUser(false);
-              setIsLoading(false);
-              return;
-          }
-
-          tg.ready();
-          tg.expand();
-          
-          const user = tg.initDataUnsafe?.user;
-          const startParam = tg.initDataUnsafe?.start_param;
-
-          if (!user || !user.id) {
-              console.error("No Telegram user detected");
-              setIsTelegramUser(false);
-              setIsLoading(false);
-              return;
-          }
-
-          const id = user.id;
-          const first_name = user.first_name || "Unknown";
-
-          setTelegramName(first_name);
-          setTelegramId(id);
-
-          // 2. Sync with Backend
-          try {
-              // DEBUG: remove after testing
-              // alert(`Connecting for ID: ${id}`); 
+          if (tg && tg.initData) {
+              tg.ready();
+              tg.expand();
+              const user = tg.initDataUnsafe?.user;
               
-              const data = await api.initUser(id, first_name, startParam);
-              
-              if (data && data.success) {
-                  // alert("Data Synced Successfully!"); // DEBUG
-                  if (data.gameState) {
-                      setInventory(prev => ({
-                          ...prev,
-                          coins: data.gameState.coins || 0,
-                          boosters: {
-                              bomb: data.gameState.bomb_boosters || 1,
-                              extraMoves: data.gameState.extra_moves_boosters || 1,
-                              shuffle: data.gameState.shuffle_boosters || 1
+              if (user && user.id) {
+                  setTelegramName(user.first_name || "Unknown");
+                  setTelegramId(user.id);
+                  setIsTelegramUser(true);
+                  setIsLoading(true);
+
+                  try {
+                      // Call backend to init/sync user
+                      // IMPORTANT: Pass user.id as string to prevent integer overflow issues in JS/JSON
+                      const data = await api.initUser(String(user.id), user.first_name || "Unknown", tg.initDataUnsafe.start_param);
+                      
+                      if (data && data.success) {
+                          if (data.gameState) {
+                              setInventory(prev => ({
+                                  ...prev,
+                                  coins: data.gameState.coins || 0,
+                                  boosters: {
+                                      bomb: data.gameState.bomb_boosters || 1,
+                                      extraMoves: data.gameState.extra_moves_boosters || 1,
+                                      shuffle: data.gameState.shuffle_boosters || 1
+                                  }
+                              }));
+                              setCurrentLevelIndex(Math.max(0, (data.gameState.current_level || 1) - 1));
+                              setLastDailyCompleted(data.gameState.last_daily_completed);
                           }
-                      }));
-                      setCurrentLevelIndex(Math.max(0, (data.gameState.current_level || 1) - 1));
-                      setLastDailyCompleted(data.gameState.last_daily_completed);
-                  }
 
-                  setUserStats(prev => ({
-                      ...prev,
-                      totalScore: parseInt(data.gameState?.total_score || '0'),
-                      totalTimePlayed: data.gameState?.total_time_played || 0,
-                      adsViewed: data.gameState?.ads_viewed || 0,
-                      tonPurchases: parseFloat(data.gameState?.ton_purchases_total || '0'),
-                      referralCode: data.user.referral_code,
-                      friends: data.friends ? data.friends.map((f: any) => ({
-                          id: f.id,
-                          name: f.friend_name,
-                          bonusEarned: f.bonus_earned,
-                          date: new Date().toLocaleDateString()
-                      })) : [],
-                      purchaseHistory: data.purchases ? data.purchases.map((p: any) => ({
-                          id: p.id,
-                          item: p.item_name,
-                          cost: parseFloat(p.cost),
-                          date: new Date(p.transaction_date).toLocaleDateString()
-                      })) : []
-                  }));
-              } else {
-                 // alert("Sync Failed. Check Server Logs."); // DEBUG
-                  // Fallback for offline (optional, maybe disable if you want strict online)
+                          setUserStats(prev => ({
+                              ...prev,
+                              totalScore: parseInt(data.gameState?.total_score || '0'),
+                              totalTimePlayed: data.gameState?.total_time_played || 0,
+                              adsViewed: data.gameState?.ads_viewed || 0,
+                              tonPurchases: parseFloat(data.gameState?.ton_purchases_total || '0'),
+                              referralCode: data.user.referral_code,
+                              friends: data.friends ? data.friends.map((f: any) => ({
+                                  id: f.id,
+                                  name: f.friend_name,
+                                  bonusEarned: f.bonus_earned,
+                                  date: new Date().toLocaleDateString()
+                              })) : [],
+                              purchaseHistory: data.purchases ? data.purchases.map((p: any) => ({
+                                  id: p.id,
+                                  item: p.item_name,
+                                  cost: parseFloat(p.cost),
+                                  date: new Date(p.transaction_date).toLocaleDateString()
+                              })) : []
+                          }));
+                          
+                          if (data.isNew) showToast(`Welcome, ${user.first_name}!`);
+                      } 
+                  } catch (e: any) {
+                      console.error("Init Error:", e);
+                      // Show the exact error on screen for debugging
+                      const errorDetail = e.message || JSON.stringify(e);
+                      alert(`Server Connection Failed:\n${errorDetail}\n\nPlease check your connection or try again later.`); 
+                  } finally {
+                      setIsLoading(false);
+                  }
+                  return;
               }
-          } catch (e: any) {
-              console.error("Init Error:", e);
-              alert("Connection Error: " + (e.message || JSON.stringify(e)));
-          } finally {
-              setIsLoading(false);
           }
+          
+          // If execution reaches here, no valid Telegram user found
+          setIsTelegramUser(false);
+          setIsLoading(false);
       };
 
       initApp();
@@ -879,6 +869,7 @@ const App: React.FC = () => {
               <Smartphone size={64} className="mb-4 text-white/50" />
               <h1 className="text-2xl font-black mb-2">Telegram Only</h1>
               <p className="text-white/60 mb-6">This game is designed to be played exclusively within the Telegram app.</p>
+              
               <a href="https://t.me/" className="bg-blue-500 hover:bg-blue-600 px-6 py-3 rounded-xl font-bold transition-colors">
                   Open Telegram
               </a>
@@ -905,7 +896,7 @@ const App: React.FC = () => {
         </div>
       </div>
       
-      {/* App Body - Identical to previous */}
+      {/* App Body */}
       {isShuffling && (
         <div className="absolute inset-0 z-[80] flex items-center justify-center bg-black/60 backdrop-blur-md animate-in fade-in duration-200">
              <div className="flex flex-col items-center gap-4">
@@ -927,7 +918,7 @@ const App: React.FC = () => {
                     <img src="https://raw.githubusercontent.com/Iulian85/eliezer-token/main/ELZR.png" alt="Eliezer Logo" className="relative w-28 h-28 object-contain drop-shadow-[0_10px_20px_rgba(0,0,0,0.5)] transition-transform duration-300 hover:scale-110" />
                  </div>
                  <h1 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-b from-white to-purple-200 drop-shadow-lg tracking-tight leading-none">ELIEZER<br/><span className="text-transparent bg-clip-text bg-gradient-to-b from-yellow-300 to-amber-600">RUSH</span></h1>
-                 <div className="text-xs text-white/40 mt-1 font-mono">{telegramName}</div>
+                 <div className="text-xs text-white/40 mt-1 font-mono">{telegramName} (ID: {telegramId})</div>
              </div>
              <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-4 custom-scrollbar flex flex-col gap-3">
                  <div className="bg-white/5 p-1 rounded-xl flex gap-1 shrink-0">

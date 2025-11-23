@@ -4,7 +4,7 @@
 const API_URL = '/api'; 
 
 export const api = {
-    initUser: async (telegramId: number, username: string, referralCode?: string) => {
+    initUser: async (telegramId: number | string, username: string, referralCode?: string) => {
         try {
             console.log(`Sending initUser request for ${username} (${telegramId})...`);
             const res = await fetch(`${API_URL}/user/init`, {
