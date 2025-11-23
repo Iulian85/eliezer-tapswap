@@ -113,8 +113,8 @@ const App: React.FC = () => {
   const [tonConnectUI] = useTonConnectUI();
   const wallet = useTonWallet();
   const [telegramName, setTelegramName] = useState<string>("Loading...");
-  const [telegramId, setTelegramId] = useState<number | null>(null);
-  const [isTelegramUser, setIsTelegramUser] = useState<boolean>(true); 
+  const [telegramId, setTelegramId] = useState<string | null>(null);
+  const [isTelegramUser, setIsTelegramUser] = useState<boolean | null>(null); // Null while checking
 
   const [board, setBoard] = useState<Board>([]);
   const [score, setScore] = useState(0);
@@ -208,14 +208,16 @@ const App: React.FC = () => {
               
               if (user && user.id) {
                   setTelegramName(user.first_name || "Unknown");
-                  setTelegramId(user.id);
+                  // Convert ID to string immediately to avoid precision loss with BigInts in JS
+                  const strId = String(user.id);
+                  setTelegramId(strId);
                   setIsTelegramUser(true);
                   setIsLoading(true);
 
                   try {
                       // Call backend to init/sync user
-                      // IMPORTANT: Pass user.id as string to prevent integer overflow issues in JS/JSON
-                      const data = await api.initUser(String(user.id), user.first_name || "Unknown", tg.initDataUnsafe.start_param);
+                      // IMPORTANT: Pass user.id as string
+                      const data = await api.initUser(strId, user.first_name || "Unknown", tg.initDataUnsafe.start_param);
                       
                       if (data && data.success) {
                           if (data.gameState) {
@@ -257,9 +259,8 @@ const App: React.FC = () => {
                       } 
                   } catch (e: any) {
                       console.error("Init Error:", e);
-                      // Show the exact error on screen for debugging
-                      const errorDetail = e.message || JSON.stringify(e);
-                      alert(`Server Connection Failed:\n${errorDetail}\n\nPlease check your connection or try again later.`); 
+                      const errorDetail = e.message || "Unknown error";
+                      alert(`Connection Failed:\n${errorDetail}\n\nPlease refresh or try again later.`); 
                   } finally {
                       setIsLoading(false);
                   }
@@ -267,7 +268,7 @@ const App: React.FC = () => {
               }
           }
           
-          // If execution reaches here, no valid Telegram user found
+          // No valid Telegram user found
           setIsTelegramUser(false);
           setIsLoading(false);
       };
@@ -863,7 +864,19 @@ const App: React.FC = () => {
       if (!wallet) { if (tonConnectUI) tonConnectUI.openModal(); showToast("Connect TON Wallet to view assets!"); } else { setIsWalletOpen(true); }
   };
 
-  if (!isTelegramUser) {
+  // --- RENDER CONDITIONALS ---
+
+  if (isLoading) {
+      return (
+          <div className="w-full h-full flex flex-col items-center justify-center bg-game-bg text-white">
+              <Loader size={48} className="animate-spin text-game-accent mb-4" />
+              <div className="text-xl font-bold animate-pulse">Connecting...</div>
+          </div>
+      );
+  }
+
+  // Strict check: If checked and NOT telegram user
+  if (isTelegramUser === false) {
       return (
           <div className="w-full h-full flex flex-col items-center justify-center bg-game-bg text-white p-8 text-center">
               <Smartphone size={64} className="mb-4 text-white/50" />
@@ -873,15 +886,6 @@ const App: React.FC = () => {
               <a href="https://t.me/" className="bg-blue-500 hover:bg-blue-600 px-6 py-3 rounded-xl font-bold transition-colors">
                   Open Telegram
               </a>
-          </div>
-      );
-  }
-
-  if (isLoading) {
-      return (
-          <div className="w-full h-full flex flex-col items-center justify-center bg-game-bg text-white">
-              <Loader size={48} className="animate-spin text-game-accent mb-4" />
-              <div className="text-xl font-bold animate-pulse">Connecting...</div>
           </div>
       );
   }
@@ -918,7 +922,7 @@ const App: React.FC = () => {
                     <img src="https://raw.githubusercontent.com/Iulian85/eliezer-token/main/ELZR.png" alt="Eliezer Logo" className="relative w-28 h-28 object-contain drop-shadow-[0_10px_20px_rgba(0,0,0,0.5)] transition-transform duration-300 hover:scale-110" />
                  </div>
                  <h1 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-b from-white to-purple-200 drop-shadow-lg tracking-tight leading-none">ELIEZER<br/><span className="text-transparent bg-clip-text bg-gradient-to-b from-yellow-300 to-amber-600">RUSH</span></h1>
-                 <div className="text-xs text-white/40 mt-1 font-mono">{telegramName} (ID: {telegramId})</div>
+                 <div className="text-xs text-white/40 mt-1 font-mono">{telegramName}</div>
              </div>
              <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-4 custom-scrollbar flex flex-col gap-3">
                  <div className="bg-white/5 p-1 rounded-xl flex gap-1 shrink-0">

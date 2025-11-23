@@ -14,6 +14,11 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const port = process.env.PORT || 3000;
 
+// CRITICAL FIX: Treat PostgreSQL BIGINT (Type ID 20) as String in JavaScript.
+// Telegram IDs are 64-bit integers. JavaScript Numbers default to 53-bit precision.
+// Without this, large Telegram IDs will be corrupted or cause JSON serialization crashes.
+pg.types.setTypeParser(20, (val) => String(val));
+
 // Middleware
 app.use(cors());
 app.use(express.json());
@@ -30,8 +35,13 @@ const pool = new pg.Pool({
 
 // Helper to extract meaningful error message
 const getErrorMessage = (err) => {
+    if (!err) return "Unknown Error";
     if (err instanceof Error) return err.message;
-    if (typeof err === 'object') return JSON.stringify(err);
+    if (typeof err === 'object') {
+        // Try to capture Postgres specific error fields
+        if (err.detail) return `${err.message} - ${err.detail}`;
+        return JSON.stringify(err);
+    }
     return String(err);
 };
 
@@ -41,7 +51,7 @@ const initDB = async () => {
   try {
     console.log("Attempting to connect to database...");
     client = await pool.connect();
-    console.log("Connected to database. Initializing schema...");
+    console.log("Connected to database. Verifying schema...");
 
     await client.query('BEGIN');
 
@@ -57,14 +67,6 @@ const initDB = async () => {
         created_at TIMESTAMP DEFAULT NOW()
       );
     `);
-
-    // SCHEMA MIGRATION: Ensure telegram_id is BIGINT (Fix for existing tables created with INTEGER)
-    try {
-        await client.query('ALTER TABLE users ALTER COLUMN telegram_id TYPE BIGINT');
-        console.log("Checked/Updated users.telegram_id to BIGINT");
-    } catch (e) {
-        console.log("Migration check for users table skipped/failed (likely ok):", e.message);
-    }
 
     // Create Game State Table
     await client.query(`
@@ -97,13 +99,6 @@ const initDB = async () => {
       );
     `);
 
-    // SCHEMA MIGRATION: Ensure friend_telegram_id is BIGINT
-    try {
-        await client.query('ALTER TABLE friends ALTER COLUMN friend_telegram_id TYPE BIGINT');
-    } catch (e) {
-         // Ignore
-    }
-
     // Create Purchases Table
     await client.query(`
       CREATE TABLE IF NOT EXISTS purchases (
@@ -116,7 +111,7 @@ const initDB = async () => {
     `);
 
     await client.query('COMMIT');
-    console.log("✅ Database schema initialized successfully.");
+    console.log("✅ Database schema verified/initialized successfully.");
   } catch (err) {
     if (client) await client.query('ROLLBACK');
     console.error("❌ CRITICAL: Error initializing database schema:", getErrorMessage(err));
@@ -150,8 +145,7 @@ app.post('/api/user/init', async (req, res) => {
         return res.status(400).json({ error: 'Missing telegramId' });
     }
 
-    // Convert to string to ensure safe handling, though PG handles it. 
-    // Mostly just validation.
+    // Convert to string to ensure safe handling, though PG handles it via the parser now.
     const tid = String(telegramId);
 
     try {
@@ -193,22 +187,27 @@ app.post('/api/user/init', async (req, res) => {
 
             // Handle Referral
             if (referralCode) {
+                 // Check if referral code exists
                  const referrerRes = await pool.query('SELECT id FROM users WHERE referral_code = $1', [referralCode]);
                  if (referrerRes.rows.length > 0) {
                      const referrerId = referrerRes.rows[0].id;
-                     try {
-                        await pool.query(
-                            'INSERT INTO friends (user_id, friend_telegram_id, friend_name) VALUES ($1, $2, $3)',
-                            [referrerId, tid, username]
-                        );
-                        
-                        await pool.query(`
-                           UPDATE game_state 
-                           SET coins = coins + 500, bomb_boosters = bomb_boosters + 1
-                           WHERE user_id = $1
-                        `, [referrerId]);
-                     } catch (refErr) {
-                        console.error("Referral processing error (non-fatal):", getErrorMessage(refErr));
+                     
+                     // Don't refer yourself
+                     if (referrerId !== userId) {
+                         try {
+                            await pool.query(
+                                'INSERT INTO friends (user_id, friend_telegram_id, friend_name) VALUES ($1, $2, $3)',
+                                [referrerId, tid, username]
+                            );
+                            
+                            await pool.query(`
+                               UPDATE game_state 
+                               SET coins = coins + 500, bomb_boosters = bomb_boosters + 1
+                               WHERE user_id = $1
+                            `, [referrerId]);
+                         } catch (refErr) {
+                            console.error("Referral processing error (non-fatal):", getErrorMessage(refErr));
+                         }
                      }
                  }
             }
@@ -218,31 +217,21 @@ app.post('/api/user/init', async (req, res) => {
         }
 
         // Fetch FULL data for the frontend
-        const user = userRes.rows.length > 0 ? userRes.rows[0] : (await pool.query('SELECT * FROM users WHERE id = $1', [userId])).rows[0];
+        // Use a fresh connection or query to ensure we get the latest
+        const user = (await pool.query('SELECT * FROM users WHERE id = $1', [userId])).rows[0];
         
         let gameState = {};
-        try {
-            const stateRes = await pool.query('SELECT * FROM game_state WHERE user_id = $1', [userId]);
-            if (stateRes.rows.length > 0) gameState = stateRes.rows[0];
-            else {
-                // Recover from missing game state
-                await pool.query('INSERT INTO game_state (user_id) VALUES ($1)', [userId]);
-                const newState = await pool.query('SELECT * FROM game_state WHERE user_id = $1', [userId]);
-                gameState = newState.rows[0];
-            }
-        } catch (e) { console.error("Error fetching game state:", getErrorMessage(e)); }
+        const stateRes = await pool.query('SELECT * FROM game_state WHERE user_id = $1', [userId]);
+        if (stateRes.rows.length > 0) {
+            gameState = stateRes.rows[0];
+        } else {
+            // Self-healing: if user exists but state missing
+            await pool.query('INSERT INTO game_state (user_id) VALUES ($1)', [userId]);
+            gameState = (await pool.query('SELECT * FROM game_state WHERE user_id = $1', [userId])).rows[0];
+        }
 
-        let friends = [];
-        try {
-            const friendsRes = await pool.query('SELECT * FROM friends WHERE user_id = $1', [userId]);
-            friends = friendsRes.rows;
-        } catch (e) { console.error("Error fetching friends:", getErrorMessage(e)); }
-
-        let purchases = [];
-        try {
-            const purchasesRes = await pool.query('SELECT * FROM purchases WHERE user_id = $1 ORDER BY transaction_date DESC', [userId]);
-            purchases = purchasesRes.rows;
-        } catch (e) { console.error("Error fetching purchases:", getErrorMessage(e)); }
+        const friends = (await pool.query('SELECT * FROM friends WHERE user_id = $1', [userId])).rows;
+        const purchases = (await pool.query('SELECT * FROM purchases WHERE user_id = $1 ORDER BY transaction_date DESC', [userId])).rows;
 
         res.json({ 
             success: true, 
@@ -253,8 +242,8 @@ app.post('/api/user/init', async (req, res) => {
             isNew 
         });
     } catch (err) {
-        console.error("DB Init Error (General):", err);
         const errorMsg = getErrorMessage(err);
+        console.error("DB Init Error (General):", errorMsg);
         res.status(500).json({ error: 'Database error', details: errorMsg });
     }
 });
@@ -262,9 +251,10 @@ app.post('/api/user/init', async (req, res) => {
 // 2. Save Game State
 app.post('/api/game/save', async (req, res) => {
     const { telegramId, state, inventory } = req.body;
+    const tid = String(telegramId);
     
     try {
-        const userRes = await pool.query('SELECT id FROM users WHERE telegram_id = $1', [telegramId]);
+        const userRes = await pool.query('SELECT id FROM users WHERE telegram_id = $1', [tid]);
         if (userRes.rows.length === 0) return res.status(404).json({ error: 'User not found' });
         
         const userId = userRes.rows[0].id;
@@ -308,9 +298,10 @@ app.post('/api/game/save', async (req, res) => {
 // 3. Record Purchase
 app.post('/api/shop/purchase', async (req, res) => {
     const { telegramId, item, cost } = req.body;
+    const tid = String(telegramId);
     
     try {
-        const userRes = await pool.query('SELECT id FROM users WHERE telegram_id = $1', [telegramId]);
+        const userRes = await pool.query('SELECT id FROM users WHERE telegram_id = $1', [tid]);
         if (userRes.rows.length === 0) return res.status(404).json({ error: 'User not found' });
         const userId = userRes.rows[0].id;
 

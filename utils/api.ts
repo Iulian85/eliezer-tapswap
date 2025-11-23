@@ -7,6 +7,7 @@ export const api = {
     initUser: async (telegramId: number | string, username: string, referralCode?: string) => {
         try {
             console.log(`Sending initUser request for ${username} (${telegramId})...`);
+            // telegramId might be string or number, ensure it handles both
             const res = await fetch(`${API_URL}/user/init`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -26,7 +27,7 @@ export const api = {
         }
     },
 
-    saveGame: async (telegramId: number, saveData: any) => {
+    saveGame: async (telegramId: number | string, saveData: any) => {
         try {
             const payload = {
                 telegramId,
@@ -55,7 +56,7 @@ export const api = {
         }
     },
 
-    recordPurchase: async (telegramId: number, item: string, cost: number) => {
+    recordPurchase: async (telegramId: number | string, item: string, cost: number) => {
         try {
             const res = await fetch(`${API_URL}/shop/purchase`, {
                 method: 'POST',
