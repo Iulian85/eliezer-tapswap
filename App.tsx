@@ -1161,7 +1161,7 @@ const App: React.FC = () => {
              {/* Logo Section - Static at top */}
              <div className="text-center shrink-0 py-6 px-6 flex flex-col items-center animate-in slide-in-from-top-4 duration-700">
                  <div className="mb-2 relative group cursor-pointer" onClick={() => setShowInfoModal(true)}>
-                    <div className="absolute inset-0 bg-pink-500/20 blur-xl rounded-full animate-pulse-fast" />
+                    <div className="absolute inset-0 bg-yellow-500/20 blur-xl rounded-full animate-pulse-fast" />
                     <img 
                         src="https://raw.githubusercontent.com/Iulian85/eliezer-token/main/ELZR.png" 
                         alt="Eliezer Logo" 
@@ -1169,7 +1169,7 @@ const App: React.FC = () => {
                     />
                  </div>
                  <h1 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-b from-white to-purple-200 drop-shadow-lg tracking-tight leading-none">
-                    ELIEZER<br/><span className="text-game-accent">RUSH</span>
+                    ELIEZER<br/><span className="text-transparent bg-clip-text bg-gradient-to-b from-yellow-300 to-amber-600">RUSH</span>
                  </h1>
              </div>
 
@@ -1258,7 +1258,7 @@ const App: React.FC = () => {
                     
                     <button 
                         onClick={() => setIsFrensOpen(true)}
-                        className="flex-1 p-3 rounded-2xl bg-gradient-to-r from-pink-500 to-rose-600 font-bold shadow-lg shadow-pink-500/20 flex flex-col items-center justify-center gap-1 hover:brightness-110 active:scale-95 transition-all border border-white/10"
+                        className="flex-1 p-3 rounded-2xl bg-gradient-to-r from-emerald-500 to-green-600 font-bold shadow-lg shadow-green-500/20 flex flex-col items-center justify-center gap-1 hover:brightness-110 active:scale-95 transition-all border border-white/10"
                     >
                         <Users className="text-white" size={18} />
                         <span className="text-[10px] uppercase tracking-wider font-bold">Frens</span>
@@ -1456,7 +1456,7 @@ const App: React.FC = () => {
             <div className="px-6 py-2 relative z-10">
                  <div className="w-full h-3 bg-black/40 rounded-full overflow-hidden border border-white/5">
                      <div 
-                        className="h-full bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 transition-all duration-500 ease-out relative"
+                        className="h-full bg-gradient-to-r from-blue-500 via-purple-500 to-orange-500 transition-all duration-500 ease-out relative"
                         style={{ width: `${Math.min(100, (score / (activeLevel.goals.find(g => g.type === 'SCORE')?.target || 1000)) * 100)}%` }}
                      >
                         <div className="absolute right-0 top-0 bottom-0 w-2 bg-white/50 blur-[2px]" />

@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { CandyColor, CandyType } from '../types';
 import { Target, Sparkles, Disc } from 'lucide-react';
@@ -10,12 +11,12 @@ interface CandyIconProps {
 }
 
 const TINT_COLORS: Record<CandyColor, string> = {
-    [CandyColor.Red]: 'text-pink-100',
+    [CandyColor.Red]: 'text-yellow-100', // Metallic Gold
     [CandyColor.Blue]: 'text-blue-100',
-    [CandyColor.Green]: 'text-emerald-100',
-    [CandyColor.Yellow]: 'text-yellow-100',
-    [CandyColor.Purple]: 'text-white', // NOT is B&W
-    [CandyColor.Orange]: 'text-black', // DOGS is B&W
+    [CandyColor.Green]: 'text-emerald-100', // USDT Green
+    [CandyColor.Yellow]: 'text-gray-100', // Metallic Grey
+    [CandyColor.Purple]: 'text-white', 
+    [CandyColor.Orange]: 'text-black', 
     [CandyColor.Multi]: 'text-white',
 };
 
@@ -48,10 +49,10 @@ const HamsterIcon = ({ size, className }: { size: number, className: string }) =
     />
 );
 
-const CatIcon = ({ size, className }: { size: number, className: string }) => (
+const UsdtIcon = ({ size, className }: { size: number, className: string }) => (
     <img 
-        src="https://catizen.ai/CATI_TOKEN.png" 
-        alt="CATI"
+        src="https://tether.to/images/logoCircle.png" 
+        alt="USDT"
         className={`${className} object-contain rounded-full`}
         style={{ width: size, height: size }}
     />
@@ -88,7 +89,7 @@ export const CandyIcon: React.FC<CandyIconProps> = ({
   switch (color) {
     case CandyColor.Red: TokenComponent = ElzrImage; break; // ELZR
     case CandyColor.Blue: TokenComponent = TonIcon; break; // TON
-    case CandyColor.Green: TokenComponent = CatIcon; break; // CATI
+    case CandyColor.Green: TokenComponent = UsdtIcon; break; // USDT
     case CandyColor.Yellow: TokenComponent = HamsterIcon; break; // HMSTR
     case CandyColor.Purple: TokenComponent = NotIcon; break; // NOT
     case CandyColor.Orange: TokenComponent = DogIcon; break; // DOGS

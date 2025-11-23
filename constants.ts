@@ -18,19 +18,19 @@ export const CANDY_COLORS = [
 ];
 
 // Visual mapping - CRYPTO THEME
-// Red: ELZR (Pink/Red)
+// Red: ELZR (Metallic Gold/Amber)
 // Blue: TON (Blue)
-// Green: CATI (Green)
-// Yellow: HMSTR (Gold/Yellow)
-// Purple: NOT (Black/Dark) - Using "Purple" enum logic but mapped to black visual
-// Orange: DOGS (White/Grey) - Using "Orange" enum logic but mapped to white visual
+// Green: USDT on TON (Green) - Replaced CATI
+// Yellow: HMSTR (Metallic Grey) - Changed from Gold
+// Purple: NOT (Black/Dark) 
+// Orange: DOGS (White/Grey)
 export const COLOR_STYLES: Record<CandyColor, string> = {
-  [CandyColor.Red]: 'bg-gradient-to-br from-rose-500 to-pink-600 shadow-pink-500/50', // ELZR
-  [CandyColor.Blue]: 'bg-gradient-to-br from-blue-400 to-blue-600 shadow-blue-500/50', // TON
-  [CandyColor.Green]: 'bg-gradient-to-br from-emerald-400 to-emerald-600 shadow-emerald-500/50', // CATI
-  [CandyColor.Yellow]: 'bg-gradient-to-br from-yellow-400 to-orange-400 shadow-yellow-500/50', // HMSTR
-  [CandyColor.Purple]: 'bg-gradient-to-br from-gray-900 to-black shadow-black/50 border border-white/10', // NOT (Replaced with Black theme)
-  [CandyColor.Orange]: 'bg-gradient-to-br from-gray-100 to-white shadow-white/30 text-black', // DOGS (Replaced with White theme)
+  [CandyColor.Red]: 'bg-gradient-to-br from-yellow-300 via-yellow-500 to-yellow-700 shadow-yellow-500/50 border border-yellow-200/30', // ELZR - Metallic Gold
+  [CandyColor.Blue]: 'bg-gradient-to-br from-blue-500 to-blue-700 shadow-blue-500/50', // TON
+  [CandyColor.Green]: 'bg-gradient-to-br from-emerald-500 to-teal-600 shadow-teal-500/50', // USDT (Teal/Green)
+  [CandyColor.Yellow]: 'bg-gradient-to-br from-gray-300 via-gray-400 to-gray-500 shadow-gray-500/50 border border-white/20', // HMSTR - Metallic Grey
+  [CandyColor.Purple]: 'bg-gradient-to-br from-gray-900 to-black shadow-black/50 border border-white/10', // NOT
+  [CandyColor.Orange]: 'bg-gradient-to-br from-gray-100 to-white shadow-white/30 text-black', // DOGS
   [CandyColor.Multi]: 'bg-gray-800 shadow-white/20 border border-white/20', // Rainbow
 };
 
@@ -77,7 +77,7 @@ export const LEVELS: LevelConfig[] = [
     timeLimit: 120,
     goals: [
        { id: 'l3g1', type: 'COLLECT', target: 10, targetColor: CandyColor.Blue, description: 'Collect 10 TON' },
-       { id: 'l3g2', type: 'COLLECT', target: 10, targetColor: CandyColor.Green, description: 'Collect 10 CATI' }
+       { id: 'l3g2', type: 'COLLECT', target: 10, targetColor: CandyColor.Green, description: 'Collect 10 USDT' }
     ]
   },
   {
@@ -124,7 +124,7 @@ export const LEVELS: LevelConfig[] = [
     goals: [
        { id: 'l8g1', type: 'SCORE', target: 12000, description: 'Score 12,000' },
        { id: 'l8g2', type: 'COLLECT', target: 5, targetCandyType: CandyType.Bomb, description: 'Collect 5 Bombs' },
-       { id: 'l8g3', type: 'COLLECT', target: 10, targetColor: CandyColor.Green, description: 'Collect 10 CATI' }
+       { id: 'l8g3', type: 'COLLECT', target: 10, targetColor: CandyColor.Green, description: 'Collect 10 USDT' }
     ]
   },
   {
@@ -164,7 +164,7 @@ export const LEVELS: LevelConfig[] = [
     goals: [
        { id: 'l12g1', type: 'COLLECT', target: 40, targetColor: CandyColor.Red, description: 'Collect 40 ELZR' },
        { id: 'l12g2', type: 'COLLECT', target: 40, targetColor: CandyColor.Blue, description: 'Collect 40 TON' },
-       { id: 'l12g3', type: 'COLLECT', target: 40, targetColor: CandyColor.Green, description: 'Collect 40 CATI' }
+       { id: 'l12g3', type: 'COLLECT', target: 40, targetColor: CandyColor.Green, description: 'Collect 40 USDT' }
     ]
   },
   {
@@ -203,7 +203,7 @@ export const LEVELS: LevelConfig[] = [
     goals: [
        { id: 'l16g1', type: 'SCORE', target: 40000, description: 'Score 40,000' },
        { id: 'l16g2', type: 'COLLECT', target: 35, targetColor: CandyColor.Red, description: 'Collect 35 ELZR' },
-       { id: 'l16g3', type: 'COLLECT', target: 35, targetColor: CandyColor.Green, description: 'Collect 35 CATI' }
+       { id: 'l16g3', type: 'COLLECT', target: 35, targetColor: CandyColor.Green, description: 'Collect 35 USDT' }
     ]
   },
   {
@@ -282,7 +282,7 @@ export const LEVELS: LevelConfig[] = [
     goals: [
        { id: 'l24g1', type: 'SCORE', target: 150000, description: 'Score 150,000' },
        { id: 'l24g2', type: 'COLLECT', target: 60, targetColor: CandyColor.Blue, description: 'Collect 60 TON' },
-       { id: 'l24g3', type: 'COLLECT', target: 60, targetColor: CandyColor.Green, description: 'Collect 60 CATI' }
+       { id: 'l24g3', type: 'COLLECT', target: 60, targetColor: CandyColor.Green, description: 'Collect 60 USDT' }
     ]
   },
   {
@@ -302,7 +302,7 @@ export const LEVELS: LevelConfig[] = [
     goals: [
        { id: 'l26g1', type: 'SCORE', target: 80000, description: 'Score 80,000' },
        { id: 'l26g2', type: 'COLLECT', target: 45, targetColor: CandyColor.Red, description: 'Collect 45 ELZR' },
-       { id: 'l26g3', type: 'COLLECT', target: 45, targetColor: CandyColor.Green, description: 'Collect 45 CATI' }
+       { id: 'l26g3', type: 'COLLECT', target: 45, targetColor: CandyColor.Green, description: 'Collect 45 USDT' }
     ]
   },
   {
@@ -361,7 +361,7 @@ export const LEVELS: LevelConfig[] = [
     timeLimit: 240,
     goals: [
        { id: 'l32g1', type: 'COLLECT', target: 12, targetCandyType: CandyType.Bomb, description: 'Collect 12 Bombs' },
-       { id: 'l32g2', type: 'COLLECT', target: 60, targetColor: CandyColor.Green, description: 'Collect 60 CATI' },
+       { id: 'l32g2', type: 'COLLECT', target: 60, targetColor: CandyColor.Green, description: 'Collect 60 USDT' },
        { id: 'l32g3', type: 'SCORE', target: 220000, description: 'Score 220,000' }
     ]
   },
@@ -422,7 +422,7 @@ export const LEVELS: LevelConfig[] = [
     goals: [
        { id: 'l38g1', type: 'SCORE', target: 500000, description: 'Score 500,000' },
        { id: 'l38g2', type: 'COLLECT', target: 50, targetColor: CandyColor.Yellow, description: 'Collect 50 HMSTR' },
-       { id: 'l38g3', type: 'COLLECT', target: 50, targetColor: CandyColor.Green, description: 'Collect 50 CATI' }
+       { id: 'l38g3', type: 'COLLECT', target: 50, targetColor: CandyColor.Green, description: 'Collect 50 USDT' }
     ]
   },
   {
@@ -451,7 +451,7 @@ export const LEVELS: LevelConfig[] = [
     timeLimit: 260,
     goals: [
        { id: 'l41g1', type: 'COLLECT', target: 100, targetColor: CandyColor.Blue, description: 'Collect 100 TON' },
-       { id: 'l41g2', type: 'COLLECT', target: 100, targetColor: CandyColor.Green, description: 'Collect 100 CATI' },
+       { id: 'l41g2', type: 'COLLECT', target: 100, targetColor: CandyColor.Green, description: 'Collect 100 USDT' },
        { id: 'l41g3', type: 'SCORE', target: 300000, description: 'Score 300,000' }
     ]
   },
@@ -502,7 +502,7 @@ export const LEVELS: LevelConfig[] = [
     goals: [
        { id: 'l46g1', type: 'COLLECT', target: 100, targetColor: CandyColor.Red, description: 'Collect 100 ELZR' },
        { id: 'l46g2', type: 'COLLECT', target: 100, targetColor: CandyColor.Blue, description: 'Collect 100 TON' },
-       { id: 'l46g3', type: 'COLLECT', target: 100, targetColor: CandyColor.Green, description: 'Collect 100 CATI' }
+       { id: 'l46g3', type: 'COLLECT', target: 100, targetColor: CandyColor.Green, description: 'Collect 100 USDT' }
     ]
   },
   {
@@ -570,7 +570,7 @@ export const LEVELS: LevelConfig[] = [
     timeLimit: 300,
     goals: [
        { id: 'l53g1', type: 'COLLECT', target: 25, targetCandyType: CandyType.Bomb, description: 'Collect 25 Bombs' },
-       { id: 'l53g2', type: 'COLLECT', target: 100, targetColor: CandyColor.Green, description: 'Collect 100 CATI' },
+       { id: 'l53g2', type: 'COLLECT', target: 100, targetColor: CandyColor.Green, description: 'Collect 100 USDT' },
        { id: 'l53g3', type: 'COLLECT', target: 100, targetColor: CandyColor.Yellow, description: 'Collect 100 HMSTR' }
     ]
   },
@@ -621,7 +621,7 @@ export const LEVELS: LevelConfig[] = [
     goals: [
        { id: 'l58g1', type: 'COLLECT', target: 20, targetCandyType: CandyType.Bomb, description: 'Collect 20 Bombs' },
        { id: 'l58g2', type: 'COLLECT', target: 150, targetColor: CandyColor.Orange, description: 'Collect 150 DOGS' },
-       { id: 'l58g3', type: 'COLLECT', target: 150, targetColor: CandyColor.Green, description: 'Collect 150 CATI' }
+       { id: 'l58g3', type: 'COLLECT', target: 150, targetColor: CandyColor.Green, description: 'Collect 150 USDT' }
     ]
   },
   {
@@ -679,7 +679,7 @@ export const LEVELS: LevelConfig[] = [
     moves: 60,
     timeLimit: 350,
     goals: [
-       { id: 'l64g1', type: 'COLLECT', target: 200, targetColor: CandyColor.Green, description: 'Collect 200 CATI' },
+       { id: 'l64g1', type: 'COLLECT', target: 200, targetColor: CandyColor.Green, description: 'Collect 200 USDT' },
        { id: 'l64g2', type: 'COLLECT', target: 200, targetColor: CandyColor.Orange, description: 'Collect 200 DOGS' },
        { id: 'l64g3', type: 'COLLECT', target: 200, targetColor: CandyColor.Purple, description: 'Collect 200 NOT' }
     ]
@@ -710,7 +710,7 @@ export const LEVELS: LevelConfig[] = [
     timeLimit: 320,
     goals: [
        { id: 'l67g1', type: 'COLLECT', target: 25, targetCandyType: CandyType.Bomb, description: 'Collect 25 Bombs' },
-       { id: 'l67g2', type: 'COLLECT', target: 200, targetColor: CandyColor.Green, description: 'Collect 200 CATI' },
+       { id: 'l67g2', type: 'COLLECT', target: 200, targetColor: CandyColor.Green, description: 'Collect 200 USDT' },
        { id: 'l67g3', type: 'SCORE', target: 3000000, description: 'Score 3,000,000' }
     ]
   },
@@ -778,7 +778,7 @@ export const LEVELS: LevelConfig[] = [
     timeLimit: 240,
     goals: [
        { id: 'l74g1', type: 'SCORE', target: 7000000, description: 'Score 7,000,000' },
-       { id: 'l74g2', type: 'COLLECT', target: 300, targetColor: CandyColor.Green, description: 'Collect 300 CATI' }
+       { id: 'l74g2', type: 'COLLECT', target: 300, targetColor: CandyColor.Green, description: 'Collect 300 USDT' }
     ]
   },
   {
@@ -788,7 +788,7 @@ export const LEVELS: LevelConfig[] = [
     goals: [
        { id: 'l75g1', type: 'COLLECT', target: 40, targetCandyType: CandyType.Bomb, description: 'Collect 40 Bombs' },
        { id: 'l75g2', type: 'COLLECT', target: 300, targetColor: CandyColor.Orange, description: 'Collect 300 DOGS' },
-       { id: 'l75g3', type: 'COLLECT', target: 300, targetColor: CandyColor.Green, description: 'Collect 300 CATI' }
+       { id: 'l75g3', type: 'COLLECT', target: 300, targetColor: CandyColor.Green, description: 'Collect 300 USDT' }
     ]
   },
   {
@@ -862,7 +862,7 @@ export const LEVELS: LevelConfig[] = [
     moves: 55,
     timeLimit: 320,
     goals: [
-       { id: 'l83g1', type: 'COLLECT', target: 350, targetColor: CandyColor.Green, description: 'Collect 350 CATI' },
+       { id: 'l83g1', type: 'COLLECT', target: 350, targetColor: CandyColor.Green, description: 'Collect 350 USDT' },
        { id: 'l83g2', type: 'COLLECT', target: 30, targetCandyType: CandyType.StripedVertical, description: 'Collect 30 V-Stripes' }
     ]
   },
@@ -954,7 +954,7 @@ export const LEVELS: LevelConfig[] = [
     moves: 55,
     timeLimit: 330,
     goals: [
-       { id: 'l93g1', type: 'COLLECT', target: 500, targetColor: CandyColor.Green, description: 'Collect 500 CATI' },
+       { id: 'l93g1', type: 'COLLECT', target: 500, targetColor: CandyColor.Green, description: 'Collect 500 USDT' },
        { id: 'l93g2', type: 'COLLECT', target: 30, targetCandyType: CandyType.StripedVertical, description: 'Collect 30 V-Stripes' }
     ]
   },
