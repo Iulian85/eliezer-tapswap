@@ -1,7 +1,6 @@
-
 import React from 'react';
 import { CandyColor, CandyType } from '../types';
-import { Heart, Hexagon, Star, Circle, Triangle, Square, Sparkles, Target, Disc } from 'lucide-react';
+import { Target, Sparkles, Disc } from 'lucide-react';
 
 interface CandyIconProps {
   color: CandyColor;
@@ -11,14 +10,70 @@ interface CandyIconProps {
 }
 
 const TINT_COLORS: Record<CandyColor, string> = {
-    [CandyColor.Red]: 'text-red-100',
+    [CandyColor.Red]: 'text-pink-100',
     [CandyColor.Blue]: 'text-blue-100',
     [CandyColor.Green]: 'text-emerald-100',
     [CandyColor.Yellow]: 'text-yellow-100',
-    [CandyColor.Purple]: 'text-purple-100',
-    [CandyColor.Orange]: 'text-orange-100',
-    [CandyColor.Multi]: 'text-white', // Rainbow base
+    [CandyColor.Purple]: 'text-white', // NOT is B&W
+    [CandyColor.Orange]: 'text-black', // DOGS is B&W
+    [CandyColor.Multi]: 'text-white',
 };
+
+// IMAGE RENDERERS FOR TOKENS
+
+const TonIcon = ({ size, className }: { size: number, className: string }) => (
+    <img 
+        src="https://ton.org/download/ton_symbol.png" 
+        alt="TON"
+        className={`${className} object-contain`}
+        style={{ width: size, height: size }}
+    />
+);
+
+const NotIcon = ({ size, className }: { size: number, className: string }) => (
+    <img 
+        src="https://cdn.joincommunity.xyz/clicker/not_logo.png" 
+        alt="NOT"
+        className={`${className} object-contain rounded-full bg-black`}
+        style={{ width: size, height: size }}
+    />
+);
+
+const HamsterIcon = ({ size, className }: { size: number, className: string }) => (
+    <img 
+        src="https://token.hamsterkombatgame.io/token/icon.png" 
+        alt="HMSTR"
+        className={`${className} object-contain rounded-full`}
+        style={{ width: size, height: size }}
+    />
+);
+
+const CatIcon = ({ size, className }: { size: number, className: string }) => (
+    <img 
+        src="https://catizen.ai/CATI_TOKEN.png" 
+        alt="CATI"
+        className={`${className} object-contain rounded-full`}
+        style={{ width: size, height: size }}
+    />
+);
+
+const DogIcon = ({ size, className }: { size: number, className: string }) => (
+    <img 
+        src="https://cdn.dogs.dev/dogs.png" 
+        alt="DOGS"
+        className={`${className} object-contain rounded-full`}
+        style={{ width: size, height: size }}
+    />
+);
+
+const ElzrImage = ({ size, className }: { size: number, className: string }) => (
+    <img 
+        src="https://raw.githubusercontent.com/Iulian85/eliezer-token/main/ELZR.png" 
+        alt="ELZR" 
+        style={{ width: size, height: size }} 
+        className={`${className} object-contain drop-shadow-md`}
+    />
+);
 
 export const CandyIcon: React.FC<CandyIconProps> = ({ 
   color, 
@@ -26,28 +81,26 @@ export const CandyIcon: React.FC<CandyIconProps> = ({
   size = 28, 
   className = "" 
 }) => {
-  // Determine Shape Icon based on color
-  let Icon = Circle;
-  switch (color) {
-    case CandyColor.Red: Icon = Heart; break;
-    case CandyColor.Blue: Icon = Hexagon; break;
-    case CandyColor.Green: Icon = Square; break; 
-    case CandyColor.Yellow: Icon = Star; break;
-    case CandyColor.Purple: Icon = Triangle; break;
-    case CandyColor.Orange: Icon = Circle; break;
-    case CandyColor.Multi: Icon = Disc; break; // Rainbow shape
-  }
-
   const tintColor = TINT_COLORS[color];
 
-  // Special Candy Renderers
-  
-  // 4. Rainbow Candy (Disco Ball)
+  // Map Colors to Token Components
+  let TokenComponent: React.FC<any>;
+  switch (color) {
+    case CandyColor.Red: TokenComponent = ElzrImage; break; // ELZR
+    case CandyColor.Blue: TokenComponent = TonIcon; break; // TON
+    case CandyColor.Green: TokenComponent = CatIcon; break; // CATI
+    case CandyColor.Yellow: TokenComponent = HamsterIcon; break; // HMSTR
+    case CandyColor.Purple: TokenComponent = NotIcon; break; // NOT
+    case CandyColor.Orange: TokenComponent = DogIcon; break; // DOGS
+    case CandyColor.Multi: TokenComponent = Disc; break;
+  }
+
+  // 1. Rainbow Candy (Disco Ball)
   if (type === CandyType.Rainbow) {
     return (
       <div className="relative flex items-center justify-center w-full h-full">
          <div className="absolute inset-0 bg-gradient-to-tr from-indigo-500 via-purple-500 to-pink-500 rounded-full animate-spin-slow opacity-80" />
-         <Icon size={size} className={`relative z-10 text-white drop-shadow-[0_0_5px_rgba(255,255,255,0.8)] ${className}`} fill="url(#rainbowGradient)" />
+         <Disc size={size} className={`relative z-10 text-white drop-shadow-[0_0_5px_rgba(255,255,255,0.8)] ${className}`} fill="url(#rainbowGradient)" />
          
          {/* Speckles */}
          <div className="absolute inset-0 flex items-center justify-center">
@@ -73,51 +126,37 @@ export const CandyIcon: React.FC<CandyIconProps> = ({
     );
   }
 
-  // 1. Striped Horizontal
-  if (type === CandyType.StripedHorizontal) {
-    return (
-      <div className="relative flex items-center justify-center w-full h-full">
-        <Icon size={size} className={`drop-shadow-md ${tintColor} opacity-90 ${className}`} fill="currentColor" />
-        <div className="absolute inset-0 flex flex-col justify-center items-center gap-1 opacity-80">
-           <div className="w-full h-[15%] bg-white/80 shadow-sm blur-[0.5px]"></div>
-           <div className="w-full h-[15%] bg-white/80 shadow-sm blur-[0.5px]"></div>
-        </div>
-      </div>
-    );
-  }
-
-  // 2. Striped Vertical
-  if (type === CandyType.StripedVertical) {
-    return (
-      <div className="relative flex items-center justify-center w-full h-full">
-        <Icon size={size} className={`drop-shadow-md ${tintColor} opacity-90 ${className}`} fill="currentColor" />
-        <div className="absolute inset-0 flex flex-row justify-center items-center gap-1 opacity-80">
-           <div className="h-full w-[15%] bg-white/80 shadow-sm blur-[0.5px]"></div>
-           <div className="h-full w-[15%] bg-white/80 shadow-sm blur-[0.5px]"></div>
-        </div>
-      </div>
-    );
-  }
-
-  // 3. Bomb
+  // 2. Bomb (Overlay on top of Token)
   if (type === CandyType.Bomb) {
     return (
       <div className="relative flex items-center justify-center w-full h-full">
-        {/* Base Shape behind - slightly larger and fully opaque tinted */}
-        <Icon size={size} className={`drop-shadow-lg ${tintColor} opacity-100 scale-110 ${className}`} fill="currentColor" />
+        {/* Token Behind */}
+        <TokenComponent size={size} className={`drop-shadow-lg ${tintColor} opacity-100 scale-110 ${className}`} />
         
         {/* Bomb overlay effects */}
         <div className="absolute inset-0 flex items-center justify-center">
-            <div className="absolute w-3/4 h-3/4 bg-black/20 rounded-full animate-pulse" />
-            {/* Small Target Indicator overlay */}
-            <Target size={size * 0.6} className="text-white/90 z-10 drop-shadow-md" strokeWidth={3} />
+            <div className="absolute w-3/4 h-3/4 bg-black/40 rounded-full animate-pulse" />
+            <Target size={size * 0.7} className="text-white/90 z-10 drop-shadow-md" strokeWidth={2.5} />
         </div>
         <Sparkles size={size * 0.5} className="absolute -top-1 -right-1 text-white animate-bounce-short drop-shadow-md" />
       </div>
     );
   }
 
-  // Normal Candy
-  // Uses a semi-transparent white to look like a watermark on the colored background
-  return <Icon size={size} className={`drop-shadow-sm text-white/40 ${className}`} fill="currentColor" />;
+  // 3. Striped (Overlay on top of Token)
+  if (type === CandyType.StripedHorizontal || type === CandyType.StripedVertical) {
+      const isVertical = type === CandyType.StripedVertical;
+      return (
+        <div className="relative flex items-center justify-center w-full h-full">
+            <TokenComponent size={size} className={`drop-shadow-md ${tintColor} opacity-90 ${className}`} />
+            <div className={`absolute inset-0 flex ${isVertical ? 'flex-row' : 'flex-col'} justify-center items-center gap-1 opacity-90`}>
+                <div className={`${isVertical ? 'h-full w-[20%]' : 'w-full h-[20%]'} bg-white/70 shadow-sm blur-[0.5px] rounded-full`}></div>
+                <div className={`${isVertical ? 'h-full w-[20%]' : 'w-full h-[20%]'} bg-white/70 shadow-sm blur-[0.5px] rounded-full`}></div>
+            </div>
+        </div>
+      );
+  }
+
+  // Normal Candy (Just the Token)
+  return <TokenComponent size={size} className={`drop-shadow-sm ${tintColor} ${className}`} />;
 };

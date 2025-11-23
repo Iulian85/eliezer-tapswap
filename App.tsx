@@ -1,5 +1,6 @@
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Board, LevelConfig, PlayMode, Inventory, CandyType, Difficulty, CandyColor, HighScore, UserStats, Friend, LeaderboardEntry } from './types';
+import { Board, LevelConfig, PlayMode, Inventory, CandyType, Difficulty, CandyColor, HighScore, UserStats, Friend, LeaderboardEntry, PurchaseRecord } from './types';
 import { 
   createInitialBoard, 
   findMatches, 
@@ -13,7 +14,7 @@ import {
 } from './utils/boardUtils';
 import { saveGame, loadGame, hasSavedGame, getHighScores, saveHighScoreEntry, getLeaderboard } from './utils/storage';
 import { generateDailyLevel, getTodayDateString } from './utils/dailyChallenge';
-import { LEVELS, SHOP_PRICES } from './constants';
+import { LEVELS, SHOP_PRICES, TREASURY_WALLET } from './constants';
 import GameBoard, { ActiveEffect } from './components/GameBoard';
 import { CandyIcon } from './components/CandyIcon';
 import { CelebrationOverlay } from './components/CelebrationOverlay';
@@ -22,6 +23,12 @@ import { WalletModal } from './components/WalletModal';
 import { FrensModal } from './components/FrensModal';
 import { RotateCcw, Trophy, Move, Play, ChevronRight, Lock, CheckCircle, Zap, Save, Download, Clock, Calendar, Coins, Target, Plus, ShoppingBag, Shuffle, BarChart3, Home, RefreshCw, X, Loader, HelpCircle, Info, Sparkles, Crosshair, Bomb, Disc, Wallet, Users, User } from 'lucide-react';
 import { TonConnectButton, useTonWallet, useTonConnectUI } from '@tonconnect/ui-react';
+
+// Utility to convert TON to Nanotons (1 TON = 1,000,000,000 nanotons)
+// Defined locally to avoid import errors from SDK
+const toNano = (amount: number): string => {
+  return (amount * 1_000_000_000).toFixed(0);
+};
 
 const DEFAULT_INVENTORY: Inventory = {
     coins: 0,
@@ -38,6 +45,7 @@ const DEFAULT_STATS: UserStats = {
     referrals: 0,
     adsViewed: 15, // Mock data for demo
     tonPurchases: 0,
+    purchaseHistory: [],
     friends: []
 };
 
@@ -237,26 +245,39 @@ const App: React.FC = () => {
 
   // ADSGRAM Integration Helper
   const showAd = useCallback((onComplete: () => void) => {
-    const Adsgram = window.Adsgram;
+    // CRITICAL FIX: Check if we are in Telegram environment before initializing ads
+    const isTelegram = (window as any).Telegram?.WebApp?.initData;
+
+    if (!isTelegram) {
+        console.log('Not in Telegram environment, skipping ad show.');
+        // Mock success for browser testing
+        setUserStats(prev => ({...prev, adsViewed: prev.adsViewed + 1}));
+        onComplete();
+        return;
+    }
+
+    const Adsgram = (window as any).Adsgram;
     if (Adsgram) {
         try {
+            // Attempt init inside a try block
             const AdController = Adsgram.init({ blockId: "int-17151" });
-            AdController.show().then((result) => {
+            AdController.show().then((result: any) => {
                 // Ad finished or skipped, proceed with game
                 setUserStats(prev => ({...prev, adsViewed: prev.adsViewed + 1}));
                 onComplete();
-            }).catch((error) => {
+            }).catch((error: any) => {
                 // Ad failed to load or show, proceed anyway so user isn't blocked
                 console.warn("Ad show failed:", error);
                 onComplete();
             });
         } catch (e) {
-            // Ad init failed (e.g. missing launch params because not in Telegram)
-            console.warn("Ad init failed:", e);
-            onComplete();
+             // Ad init failed (e.g. missing launch params because not in Telegram)
+             console.warn("Adsgram init failed - likely not in Telegram:", e);
+             onComplete();
         }
     } else {
         // Adsgram not loaded or not available, proceed
+        console.warn("Adsgram script not loaded.");
         onComplete();
     }
   }, []);
@@ -289,7 +310,10 @@ const App: React.FC = () => {
             setHasSave(true);
         }
         setInventory(saved.inventory || DEFAULT_INVENTORY);
-        setUserStats(saved.stats || DEFAULT_STATS);
+        setUserStats(prev => {
+           // Merge loaded stats with potentially new default fields (like purchaseHistory)
+           return { ...DEFAULT_STATS, ...(saved.stats || {}) };
+        });
         setLastDailyCompleted(saved.lastDailyCompleted || null);
         if (saved.levelIndex >= 0) {
             setCurrentLevelIndex(saved.levelIndex);
@@ -388,7 +412,7 @@ const App: React.FC = () => {
       setTimeLeft(data.timeLeft);
       setGoalProgress(data.goalProgress);
       setInventory(data.inventory || DEFAULT_INVENTORY);
-      setUserStats(data.stats || DEFAULT_STATS);
+      setUserStats({ ...DEFAULT_STATS, ...(data.stats || {}) });
       setLastDailyCompleted(data.lastDailyCompleted || null);
       
       if (data.levelIndex === -1) {
@@ -635,7 +659,7 @@ const App: React.FC = () => {
       return { success: false, message: "Invalid Code" };
   };
 
-  // Game Loop (Omitted unchanged logic for brevity as it is large, only rendering changes follow)
+  // Game Loop
   useEffect(() => {
     if (gameState !== 'PLAYING') return;
 
@@ -651,25 +675,7 @@ const App: React.FC = () => {
         const swapContext = comboMultiplier === 1 ? lastSwapRef.current : null;
         const { board: boardAfterClear, scoreDelta, clearedCandies, specialEvents } = processMatches(board, swapContext);
 
-        // VISUAL FEEDBACK
-        const animBoard = [...board];
-        let hasMatchesToAnimate = false;
-        for (let i = 0; i < board.length; i++) {
-            if (board[i] && boardAfterClear[i] === null) {
-                animBoard[i] = { ...board[i]!, isMatched: true };
-                hasMatchesToAnimate = true;
-            }
-        }
-
-        if (hasMatchesToAnimate) {
-            setBoard(animBoard);
-            playExplosionSound('normal');
-            await new Promise(r => setTimeout(r, 250)); 
-        } else {
-            await new Promise(r => setTimeout(r, 250));
-        }
-        
-        // Proceed with goal tracking and board update
+        // 1. Identify Goal Matches Immediately
         const goalCandyIds = new Set<string>();
         activeLevel.goals.forEach(goal => {
             if (goal.type === 'COLLECT') {
@@ -685,17 +691,40 @@ const App: React.FC = () => {
             }
         });
 
-        if (goalCandyIds.size > 0) {
-            const indicesToAnimate: number[] = [];
-            board.forEach((c, idx) => {
-                if (c && goalCandyIds.has(c.id)) indicesToAnimate.push(idx);
-            });
-            
-            if (indicesToAnimate.length > 0) {
-                setCollectingIndices(indicesToAnimate);
-                await new Promise(r => setTimeout(r, 600)); 
-                setCollectingIndices([]);
+        // 2. Prepare Visual Feedback & Collecting Indices
+        const animBoard = [...board];
+        let hasMatchesToAnimate = false;
+        const indicesToAnimate: number[] = [];
+
+        for (let i = 0; i < board.length; i++) {
+            if (board[i] && boardAfterClear[i] === null) {
+                // Mark for match animation
+                animBoard[i] = { ...board[i]!, isMatched: true };
+                hasMatchesToAnimate = true;
+                
+                // If it is also a goal candy, track index for special collection effect
+                if (board[i] && goalCandyIds.has(board[i]!.id)) {
+                    indicesToAnimate.push(i);
+                }
             }
+        }
+
+        // 3. Trigger Collection Effect concurrently with Match Animation
+        if (indicesToAnimate.length > 0) {
+            setCollectingIndices(indicesToAnimate);
+        }
+
+        if (hasMatchesToAnimate) {
+            setBoard(animBoard);
+            playExplosionSound('normal');
+            
+            // If we are collecting goal candies, extend delay to let the effect play out
+            const delay = indicesToAnimate.length > 0 ? 550 : 250;
+            await new Promise(r => setTimeout(r, delay)); 
+            
+            setCollectingIndices([]);
+        } else {
+            await new Promise(r => setTimeout(r, 250));
         }
         
         if (specialEvents.length > 0) {
@@ -749,7 +778,8 @@ const App: React.FC = () => {
         const { board: boardAfterFall, movesHappened } = moveCandiesDown(boardAfterClear);
         setBoard(boardAfterFall);
         
-        if (movesHappened) await new Promise(r => setTimeout(r, 200));
+        // Wait for settle animation (increased from 200 to 450 for swirl effect)
+        if (movesHappened) await new Promise(r => setTimeout(r, 450));
         
       } else {
         setIsProcessing(false);
@@ -934,21 +964,89 @@ const App: React.FC = () => {
     }
   }, [selectedCandy, handleSwipe, isProcessing, gameState, activeBooster, board]);
 
-  const handleBuyBooster = (item: 'bomb' | 'extraMoves' | 'shuffle', cost: number) => {
-    if (inventory.coins >= cost) {
-      setInventory(prev => ({
-        coins: prev.coins - cost,
-        boosters: {
-          ...prev.boosters,
-          [item]: prev.boosters[item] + 1
-        }
-      }));
-      showToast("Purchased!");
+  const handleBuyBooster = async (item: 'bomb' | 'extraMoves' | 'shuffle', cost: number) => {
+    if (!wallet) {
+        showToast("Connect Wallet first!");
+        return;
+    }
+
+    // Prepare transaction
+    const transaction = {
+        validUntil: Math.floor(Date.now() / 1000) + 60, // 60 sec validity
+        messages: [
+            {
+                address: TREASURY_WALLET,
+                amount: toNano(cost),
+            },
+        ],
+    };
+
+    try {
+        await tonConnectUI.sendTransaction(transaction);
+        
+        // If successful
+        setInventory(prev => ({
+          ...prev,
+          boosters: {
+            ...prev.boosters,
+            [item]: prev.boosters[item] + 1
+          },
+        }));
+
+        setUserStats(prev => {
+            const itemName = item === 'bomb' ? 'Bomb' : item === 'extraMoves' ? '+5 Moves' : 'Shuffle';
+            const newRecord: PurchaseRecord = {
+                id: Date.now().toString(),
+                item: itemName,
+                cost: cost,
+                date: new Date().toLocaleDateString() + ' ' + new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
+            };
+
+            const newStats = {
+                ...prev,
+                tonPurchases: prev.tonPurchases + cost, // Add TON amount to purchases
+                purchaseHistory: [newRecord, ...prev.purchaseHistory] // Add to history
+            };
+            
+            // Save immediately so purchase stats are not lost on reload
+            saveGame({
+                board,
+                score,
+                moves,
+                timeLeft,
+                levelIndex: currentLevelIndex,
+                goalProgress,
+                timestamp: Date.now(),
+                inventory: {
+                    ...inventory,
+                    boosters: {
+                        ...inventory.boosters,
+                        [item]: inventory.boosters[item] + 1
+                    }
+                },
+                stats: newStats,
+                lastDailyCompleted
+            });
+            return newStats;
+        });
+
+        showToast("Purchase Successful!");
+        
+    } catch (e) {
+        console.error("Transaction failed", e);
+        showToast("Transaction Failed or Cancelled");
     }
   };
 
   const handleManualShuffle = () => {
-    if (!shuffleAvailable || isProcessing || gameState !== 'PLAYING') return;
+    if (isProcessing || gameState !== 'PLAYING') return;
+    
+    // Logic priority: Free -> Inventory
+    const canShuffle = shuffleAvailable || inventory.boosters.shuffle > 0;
+    if (!canShuffle) {
+         showToast("No Shuffles left!");
+         return;
+    }
 
     setIsProcessing(true);
     setIsShuffling(true);
@@ -957,8 +1055,20 @@ const App: React.FC = () => {
         setBoard(shuffleBoard(board));
         setIsShuffling(false);
         setIsProcessing(false);
-        setShuffleAvailable(false);
-        showToast("Board Shuffled!");
+        
+        if (shuffleAvailable) {
+            setShuffleAvailable(false);
+            showToast("Board Shuffled!");
+        } else {
+             setInventory(prev => ({
+                ...prev,
+                boosters: {
+                    ...prev.boosters,
+                    shuffle: Math.max(0, prev.boosters.shuffle - 1)
+                }
+            }));
+            showToast("Board Shuffled!");
+        }
     }, 1200);
   };
 
@@ -1046,25 +1156,28 @@ const App: React.FC = () => {
 
       {/* --- INTRO SCREEN --- */}
       {gameState === 'INTRO' && (
-          <div className="flex-1 flex flex-col items-center justify-center p-8 space-y-8 animate-in fade-in duration-500 relative">
+          <div className="flex-1 flex flex-col h-full animate-in fade-in duration-500 relative">
              
-             <div className="text-center space-y-2">
-                 <div className="w-24 h-24 bg-gradient-to-br from-pink-500 to-purple-600 rounded-3xl mx-auto shadow-2xl rotate-12 flex items-center justify-center border-4 border-white/20 mb-6">
-                    <Target size={48} className="text-white animate-pulse" />
+             {/* Logo Section - Static at top */}
+             <div className="text-center shrink-0 py-4 px-6 flex flex-col items-center">
+                 <div className="w-14 h-14 bg-gradient-to-br from-pink-500 to-purple-600 rounded-2xl shadow-2xl rotate-12 flex items-center justify-center border-4 border-white/20 mb-2">
+                    <Target size={28} className="text-white animate-pulse" />
                  </div>
-                 <h1 className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-b from-white to-purple-200 drop-shadow-lg tracking-tight">
+                 <h1 className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-b from-white to-purple-200 drop-shadow-lg tracking-tight leading-none">
                     ELIEZER<br/><span className="text-game-accent">RUSH</span>
                  </h1>
-                 <p className="text-white/60 font-medium">Match, Blast, Win!</p>
              </div>
 
-             <div className="w-full space-y-4">
-                 <div className="bg-white/5 p-1 rounded-xl flex gap-1 mb-2">
+             {/* Main Content Area - Scrollable */}
+             <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-4 custom-scrollbar flex flex-col gap-3">
+                 
+                 {/* Difficulty Toggle */}
+                 <div className="bg-white/5 p-1 rounded-xl flex gap-1 shrink-0">
                     {(['EASY', 'MEDIUM', 'HARD'] as Difficulty[]).map((d) => (
                         <button
                             key={d}
                             onClick={() => setDifficulty(d)}
-                            className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${
+                            className={`flex-1 py-2 text-[10px] sm:text-xs font-bold rounded-lg transition-all ${
                                 difficulty === d 
                                 ? 'bg-game-accent text-white shadow-lg' 
                                 : 'text-white/40 hover:bg-white/10 hover:text-white'
@@ -1075,7 +1188,23 @@ const App: React.FC = () => {
                     ))}
                  </div>
 
-                 <div className="bg-game-panel rounded-2xl p-4 max-h-48 overflow-y-auto space-y-2 border border-white/5 custom-scrollbar">
+                 {/* Daily Challenge */}
+                 <button 
+                    onClick={openDailyPreview}
+                    className="w-full p-3 rounded-2xl bg-gradient-to-r from-yellow-500 to-orange-500 font-bold shadow-lg shadow-orange-500/20 flex items-center justify-between hover:brightness-110 active:scale-95 transition-all shrink-0"
+                 >
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 bg-white/20 rounded-lg"><Calendar className="text-white" size={18} /></div>
+                        <div className="text-left">
+                            <div className="text-[10px] uppercase opacity-80">Daily Challenge</div>
+                            <div className="text-sm font-black">Play Today's Level</div>
+                        </div>
+                    </div>
+                    {lastDailyCompleted === getTodayDateString() ? <CheckCircle className="text-white/80" /> : <ChevronRight size={18} />}
+                 </button>
+
+                 {/* Level List */}
+                 <div className="bg-game-panel rounded-2xl p-2 border border-white/5 space-y-1.5">
                      {LEVELS.map((lvl, idx) => {
                          const isLocked = idx > 0 && idx > currentLevelIndex && !hasSave; 
                          return (
@@ -1083,11 +1212,11 @@ const App: React.FC = () => {
                                 key={lvl.levelNumber}
                                 onClick={() => !isLocked && openLevelPreview(idx)}
                                 className={`w-full p-3 rounded-xl flex items-center justify-between group transition-all
-                                    ${isLocked ? 'bg-white/5 opacity-50' : 'bg-white/10 hover:bg-white/20 hover:scale-[1.02] active:scale-95'}
+                                    ${isLocked ? 'bg-white/5 opacity-50' : 'bg-white/10 hover:bg-white/20 hover:scale-[1.01] active:scale-95'}
                                 `}
                              >
                                 <div className="flex items-center gap-3">
-                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${isLocked ? 'bg-white/10' : 'bg-gradient-to-br from-blue-400 to-blue-600'}`}>
+                                    <div className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm shadow-inner ${isLocked ? 'bg-white/10' : 'bg-gradient-to-br from-blue-400 to-blue-600 border border-white/20'}`}>
                                         {isLocked ? <Lock size={12} /> : idx + 1}
                                     </div>
                                     <div className="text-left">
@@ -1101,55 +1230,43 @@ const App: React.FC = () => {
                      })}
                  </div>
 
-                 <button 
-                    onClick={openDailyPreview}
-                    className="w-full p-4 rounded-2xl bg-gradient-to-r from-yellow-500 to-orange-500 font-bold shadow-lg shadow-orange-500/20 flex items-center justify-between hover:brightness-110 active:scale-95 transition-all"
-                 >
-                    <div className="flex items-center gap-3">
-                        <Calendar className="text-white" />
-                        <div className="text-left">
-                            <div className="text-xs uppercase opacity-80">Daily Challenge</div>
-                            <div>Play Today's Level</div>
-                        </div>
-                    </div>
-                    {lastDailyCompleted === getTodayDateString() ? <CheckCircle className="text-white/80" /> : <ChevronRight />}
-                 </button>
+                 {hasSave && (
+                     <button 
+                        onClick={handleLoadGame}
+                        className="w-full py-3 rounded-xl bg-white/10 font-bold text-xs flex items-center justify-center gap-2 hover:bg-white/20 transition-all shrink-0 border border-white/10"
+                    >
+                        <RotateCcw size={14} /> Resume Saved Game
+                     </button>
+                 )}
+             </div>
 
-                 {/* MENU BUTTONS ROW */}
-                 <div className="flex gap-2">
+             {/* Bottom Menu - Fixed at bottom */}
+             <div className="p-4 pt-2 bg-gradient-to-t from-game-bg via-game-bg to-transparent shrink-0">
+                 <div className="flex gap-3">
                     <button 
                         onClick={() => setShowLeaderboard(true)}
-                        className="flex-1 p-4 rounded-2xl bg-gradient-to-r from-indigo-500 to-purple-600 font-bold shadow-lg shadow-indigo-500/20 flex flex-col items-center justify-center gap-1 hover:brightness-110 active:scale-95 transition-all"
+                        className="flex-1 p-3 rounded-2xl bg-gradient-to-r from-indigo-500 to-purple-600 font-bold shadow-lg shadow-indigo-500/20 flex flex-col items-center justify-center gap-1 hover:brightness-110 active:scale-95 transition-all border border-white/10"
                     >
-                        <BarChart3 className="text-white" size={20} />
-                        <span className="text-[10px] uppercase tracking-wider">Rank</span>
+                        <BarChart3 className="text-white" size={18} />
+                        <span className="text-[10px] uppercase tracking-wider font-bold">Rank</span>
                     </button>
                     
                     <button 
                         onClick={() => setIsFrensOpen(true)}
-                        className="flex-1 p-4 rounded-2xl bg-gradient-to-r from-pink-500 to-rose-600 font-bold shadow-lg shadow-pink-500/20 flex flex-col items-center justify-center gap-1 hover:brightness-110 active:scale-95 transition-all"
+                        className="flex-1 p-3 rounded-2xl bg-gradient-to-r from-pink-500 to-rose-600 font-bold shadow-lg shadow-pink-500/20 flex flex-col items-center justify-center gap-1 hover:brightness-110 active:scale-95 transition-all border border-white/10"
                     >
-                        <Users className="text-white" size={20} />
-                        <span className="text-[10px] uppercase tracking-wider">Frens</span>
+                        <Users className="text-white" size={18} />
+                        <span className="text-[10px] uppercase tracking-wider font-bold">Frens</span>
                     </button>
 
                     <button 
                         onClick={handleOpenWallet}
-                        className="flex-1 p-4 rounded-2xl bg-gradient-to-r from-gray-700 to-gray-800 font-bold shadow-lg flex flex-col items-center justify-center gap-1 hover:brightness-110 active:scale-95 transition-all border border-white/10"
+                        className="flex-1 p-3 rounded-2xl bg-gradient-to-r from-gray-700 to-gray-800 font-bold shadow-lg flex flex-col items-center justify-center gap-1 hover:brightness-110 active:scale-95 transition-all border border-white/10"
                     >
-                        {wallet ? <Wallet className="text-cyan-400" size={20} /> : <Wallet className="text-white/50" size={20} />}
-                        <span className={`text-[10px] uppercase tracking-wider ${wallet ? "text-white" : "text-white/50"}`}>Wallet</span>
+                        {wallet ? <Wallet className="text-cyan-400" size={18} /> : <Wallet className="text-white/50" size={18} />}
+                        <span className={`text-[10px] uppercase tracking-wider font-bold ${wallet ? "text-white" : "text-white/50"}`}>Wallet</span>
                     </button>
                  </div>
-
-                 {hasSave && (
-                     <button 
-                        onClick={handleLoadGame}
-                        className="w-full py-3 rounded-xl bg-white/10 font-bold text-sm flex items-center justify-center gap-2 hover:bg-white/20 transition-all"
-                    >
-                        <RotateCcw size={16} /> Resume Game
-                     </button>
-                 )}
              </div>
           </div>
       )}
@@ -1362,7 +1479,7 @@ const App: React.FC = () => {
             </div>
 
             {/* Bottom Controls */}
-            <div className="px-4 pb-8 pt-2 flex items-center justify-between gap-4 z-10 bg-gradient-to-t from-game-bg via-game-bg to-transparent">
+            <div className="px-4 pb-6 pt-2 flex items-center justify-between gap-4 z-10 bg-gradient-to-t from-game-bg via-game-bg to-transparent">
                 <button 
                     onClick={() => initGame(activeLevel)}
                     className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center text-white/50 hover:bg-white/10 hover:text-white transition-colors"
@@ -1390,8 +1507,9 @@ const App: React.FC = () => {
                         icon={Shuffle} 
                         onClick={handleManualShuffle} 
                         color="green"
-                        disabled={!shuffleAvailable}
-                        label={shuffleAvailable ? "FREE" : "USED"}
+                        disabled={!shuffleAvailable && inventory.boosters.shuffle === 0}
+                        label={shuffleAvailable ? "FREE" : undefined}
+                        count={!shuffleAvailable ? inventory.boosters.shuffle : undefined}
                     />
                 </div>
                 
@@ -1551,9 +1669,9 @@ const App: React.FC = () => {
             </div>
 
             {/* User Docked Rank */}
-            <div className="absolute bottom-0 left-0 right-0 bg-[#1a103c] p-4 border-t border-white/20 shadow-[0_-10px_20px_rgba(0,0,0,0.5)]">
+            <div className="absolute bottom-0 left-0 right-0 bg-[#1a103c] p-4 border-t border-white/20 shadow-[0_-10px_20px_rgba(0,0,0,0.5)] flex items-center justify-center">
                 {leaderboardData && (
-                    <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-xl p-3 flex items-center justify-between shadow-lg border border-white/20 relative overflow-hidden">
+                    <div className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 rounded-xl p-3 flex items-center justify-between shadow-lg border border-white/20 relative overflow-hidden">
                         <div className="absolute inset-0 bg-white/10 animate-pulse pointer-events-none" />
                         <div className="flex items-center gap-3 z-10">
                             <div className="flex flex-col items-center justify-center w-10 h-10 bg-black/30 rounded-lg border border-white/10">
@@ -1627,6 +1745,8 @@ const App: React.FC = () => {
         onClose={() => setIsShopOpen(false)} 
         inventory={inventory}
         onBuy={handleBuyBooster}
+        walletConnected={!!wallet}
+        stats={userStats}
       />
 
       <WalletModal

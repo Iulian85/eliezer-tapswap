@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Board } from '../types';
 import CandyItem from './CandyItem';
@@ -119,23 +118,24 @@ const GameBoard: React.FC<GameBoardProps> = ({
                         key={`${index}-${candy?.id || 'empty'}`} 
                         className={`aspect-square relative p-0.5 transition-all duration-300 
                             ${isBombEffect ? 'scale-[0.85] brightness-150 rotate-3' : ''}
-                            ${isCollecting ? 'scale-125 z-[100] brightness-110 ease-out' : ''}
+                            ${isCollecting ? 'z-[60]' : ''} 
                         `}
                     >
                         <CandyItem 
                             candy={candy}
                             isSelected={selectedCandyIndex === index}
+                            isCollecting={isCollecting}
                             style={style}
                             onPointerDown={(e) => handlePointerDown(e, index)}
                             onPointerMove={handlePointerMove}
                             onPointerUp={handlePointerUp}
                         />
                         
-                        {/* Goal Collection Effect */}
+                        {/* Goal Collection Effect Overlay - Sits on top of the CandyItem */}
                         {isCollecting && (
-                            <div className="absolute inset-0 z-[60] flex items-center justify-center pointer-events-none">
+                            <div className="absolute inset-0 z-[70] flex items-center justify-center pointer-events-none">
                                 {/* Stronger Golden Glow Background */}
-                                <div className="absolute inset-[-40%] bg-yellow-400/50 blur-md rounded-full animate-pulse" />
+                                <div className="absolute inset-[-50%] bg-yellow-400/40 blur-md rounded-full animate-pulse" />
                                 
                                 {/* Expanding Ring - More distinct */}
                                 <div className="absolute inset-0 border-[3px] border-white/90 rounded-full animate-[ping_0.6s_cubic-bezier(0,0,0.2,1)_forwards]" />

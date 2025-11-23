@@ -68,12 +68,20 @@ export interface Friend {
   date: string;
 }
 
+export interface PurchaseRecord {
+  id: string;
+  item: string;
+  cost: number;
+  date: string;
+}
+
 export interface UserStats {
   totalScore: number;
   totalTimePlayed: number; // in seconds
   referrals: number;
   adsViewed: number;
   tonPurchases: number;
+  purchaseHistory: PurchaseRecord[];
   referralCode?: string;
   redeemedReferralCode?: string;
   friends?: Friend[];

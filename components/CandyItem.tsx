@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Candy, CandyType } from '../types';
 import { COLOR_STYLES } from '../constants';
@@ -7,6 +6,7 @@ import { CandyIcon } from './CandyIcon';
 interface CandyItemProps {
   candy: Candy | null;
   isSelected: boolean;
+  isCollecting?: boolean;
   style?: React.CSSProperties;
   onPointerDown?: (e: React.PointerEvent) => void;
   onPointerMove?: (e: React.PointerEvent) => void;
@@ -17,6 +17,7 @@ interface CandyItemProps {
 const CandyItem: React.FC<CandyItemProps> = ({
   candy,
   isSelected,
+  isCollecting,
   style,
   onPointerDown,
   onPointerMove,
@@ -33,11 +34,20 @@ const CandyItem: React.FC<CandyItemProps> = ({
   
   // Animations
   const entranceAnim = candy.isNew ? 'animate-bounce-in' : '';
-  const settleAnim = candy.isSettling ? 'animate-settle' : '';
   
-  // Match Animation: Quick scale up and fade out (Distinct from collecting)
+  // Swirl Settle Animation: Deterministically choose CW or CCW based on candy ID
+  const isEven = candy.id.split('').reduce((a,c) => a + c.charCodeAt(0), 0) % 2 === 0;
+  const settleAnim = candy.isSettling 
+    ? (isEven ? 'animate-settle-cw' : 'animate-settle-ccw') 
+    : '';
+  
+  // Match Animation: 
+  // If collecting, use the specialized 'animate-collect-pop' (defined in index.html)
+  // Otherwise use standard pop
   const matchAnim = candy.isMatched 
-    ? 'scale-150 opacity-0 brightness-200 saturate-200 !duration-250 ease-out z-50' 
+    ? (isCollecting 
+        ? 'animate-collect-pop z-50' 
+        : 'scale-150 opacity-0 brightness-200 saturate-200 !duration-250 ease-out z-50')
     : '';
   
   // Only apply scale-95 (default idle) if not selected and not matching

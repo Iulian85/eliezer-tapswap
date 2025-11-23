@@ -18,10 +18,56 @@ export const FrensModal: React.FC<FrensModalProps> = ({ isOpen, onClose, stats, 
   if (!isOpen) return null;
 
   const handleCopy = () => {
-    if (stats.referralCode) {
-      navigator.clipboard.writeText(`Join me on Eliezer Rush! Use my code: ${stats.referralCode}`);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+    if (!stats.referralCode) return;
+    const textToCopy = stats.referralCode;
+
+    const showSuccess = () => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+    };
+
+    // 1. Try the standard robust fallback method (works best in WebViews/Mobile)
+    const fallbackCopy = () => {
+        try {
+            const textArea = document.createElement("textarea");
+            textArea.value = textToCopy;
+            
+            // Ensure element is fixed position to avoid scrolling to bottom
+            textArea.style.position = "fixed";
+            textArea.style.left = "-9999px";
+            textArea.style.top = "0";
+            textArea.setAttribute('readonly', ''); // Prevent keyboard popping up
+            
+            document.body.appendChild(textArea);
+            
+            // Select text
+            textArea.focus();
+            textArea.select();
+            textArea.setSelectionRange(0, 99999); // For mobile devices
+
+            const successful = document.execCommand('copy');
+            document.body.removeChild(textArea);
+            
+            if (successful) {
+                showSuccess();
+            } else {
+                console.error("Fallback copy failed.");
+            }
+        } catch (err) {
+            console.error('Fallback copy error', err);
+        }
+    };
+
+    // 2. Attempt Modern Async Clipboard API first, then fallback
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(textToCopy)
+            .then(showSuccess)
+            .catch(() => {
+                // If permission denied or failed, try fallback
+                fallbackCopy();
+            });
+    } else {
+        fallbackCopy();
     }
   };
 
@@ -67,12 +113,19 @@ export const FrensModal: React.FC<FrensModalProps> = ({ isOpen, onClose, stats, 
              
              <h3 className="text-white/80 text-sm font-bold mb-3">Your Referral Code</h3>
              <div className="flex items-center gap-2 bg-black/40 p-1 rounded-xl border border-white/5">
-                 <div className="flex-1 px-3 py-2 font-mono text-xl font-black text-white tracking-wider text-center uppercase">
+                 {/* Also added onClick to the text area itself for easier copying */}
+                 <div 
+                    onClick={handleCopy}
+                    className="flex-1 px-3 py-2 font-mono text-xl font-black text-white tracking-wider text-center uppercase cursor-pointer active:scale-95 transition-transform"
+                 >
                      {stats.referralCode || 'LOADING...'}
                  </div>
                  <button 
-                    onClick={handleCopy}
-                    className={`p-3 rounded-lg transition-all font-bold text-sm flex items-center gap-2
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        handleCopy();
+                    }}
+                    className={`p-3 rounded-lg transition-all font-bold text-sm flex items-center gap-2 active:scale-95
                         ${copied ? 'bg-green-500 text-white' : 'bg-white/10 text-white hover:bg-white/20'}`}
                  >
                      {copied ? <CheckCircle size={18} /> : <Copy size={18} />}

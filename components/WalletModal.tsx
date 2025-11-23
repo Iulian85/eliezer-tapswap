@@ -36,7 +36,9 @@ export const WalletModal: React.FC<WalletModalProps> = ({ isOpen, onClose, walle
   const sharesFromReferrals = stats.referrals * 10000;
   const sharesFromAds = stats.adsViewed * 500;
   const sharesFromTime = Math.floor(stats.totalTimePlayed / 60) * 10; // 10 shares per minute
-  const sharesFromPurchase = stats.tonPurchases * 1000; // Arbitrary multiplier
+  
+  // High impact multiplier for paid contributions
+  const sharesFromPurchase = Math.floor(stats.tonPurchases * 100000); 
   
   const totalShares = sharesFromScore + sharesFromReferrals + sharesFromAds + sharesFromTime + sharesFromPurchase;
   
@@ -112,7 +114,7 @@ export const WalletModal: React.FC<WalletModalProps> = ({ isOpen, onClose, walle
                     <StatRow label={`Referrals (${stats.referrals})`} value={`${sharesFromReferrals.toLocaleString()} shares`} />
                     <StatRow label={`Ads Viewed (${stats.adsViewed})`} value={`${sharesFromAds.toLocaleString()} shares`} />
                     <StatRow label={`Time Spent (${formatTime(stats.totalTimePlayed)})`} value={`${sharesFromTime.toLocaleString()} shares`} />
-                    <StatRow label={`TON Purchases (${stats.tonPurchases})`} value={`${sharesFromPurchase.toLocaleString()} shares`} />
+                    <StatRow label={`TON Purchases (${stats.tonPurchases.toFixed(2)})`} value={`${sharesFromPurchase.toLocaleString()} shares`} />
                 </div>
                 
                 <p className="text-[10px] text-cyan-200/40 text-center leading-relaxed px-4 font-medium">
