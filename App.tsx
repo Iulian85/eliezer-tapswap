@@ -1159,11 +1159,16 @@ const App: React.FC = () => {
           <div className="flex-1 flex flex-col h-full animate-in fade-in duration-500 relative">
              
              {/* Logo Section - Static at top */}
-             <div className="text-center shrink-0 py-4 px-6 flex flex-col items-center">
-                 <div className="w-14 h-14 bg-gradient-to-br from-pink-500 to-purple-600 rounded-2xl shadow-2xl rotate-12 flex items-center justify-center border-4 border-white/20 mb-2">
-                    <Target size={28} className="text-white animate-pulse" />
+             <div className="text-center shrink-0 py-6 px-6 flex flex-col items-center animate-in slide-in-from-top-4 duration-700">
+                 <div className="mb-2 relative group cursor-pointer" onClick={() => setShowInfoModal(true)}>
+                    <div className="absolute inset-0 bg-pink-500/20 blur-xl rounded-full animate-pulse-fast" />
+                    <img 
+                        src="https://raw.githubusercontent.com/Iulian85/eliezer-token/main/ELZR.png" 
+                        alt="Eliezer Logo" 
+                        className="relative w-28 h-28 object-contain drop-shadow-[0_10px_20px_rgba(0,0,0,0.5)] transition-transform duration-300 hover:scale-110"
+                    />
                  </div>
-                 <h1 className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-b from-white to-purple-200 drop-shadow-lg tracking-tight leading-none">
+                 <h1 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-b from-white to-purple-200 drop-shadow-lg tracking-tight leading-none">
                     ELIEZER<br/><span className="text-game-accent">RUSH</span>
                  </h1>
              </div>
