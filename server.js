@@ -28,12 +28,29 @@ const pool = new pg.Pool({
   }
 });
 
+// Test DB Connection on Start
+pool.connect((err, client, release) => {
+    if (err) {
+        console.error('CRITICAL: Error acquiring client', err.stack);
+    } else {
+        console.log('Database Connected Successfully');
+        release();
+    }
+});
+
 // --- API ROUTES ---
 
-// 1. Initialize User (Login/Start) - ACUM RETURNAM SI PRIETENII SI ISTORICUL
+// 1. Initialize User (Login/Start)
 app.post('/api/user/init', async (req, res) => {
+    console.log('Received /api/user/init request:', req.body); // LOG REQUEST
+
     const { telegramId, username, referralCode } = req.body;
     
+    if (!telegramId) {
+        console.error('Missing telegramId in request');
+        return res.status(400).json({ error: 'Missing telegramId' });
+    }
+
     try {
         // Check if user exists
         const userRes = await pool.query('SELECT * FROM users WHERE telegram_id = $1', [telegramId]);
@@ -42,21 +59,35 @@ app.post('/api/user/init', async (req, res) => {
         let isNew = false;
 
         if (userRes.rows.length === 0) {
+            console.log(`Creating new user: ${username} (${telegramId})`);
+            
             // Create new user
             const myRefCode = 'ELZR-' + Math.random().toString(36).substring(2, 8).toUpperCase();
             
-            const insertRes = await pool.query(
-                'INSERT INTO users (telegram_id, username, referral_code) VALUES ($1, $2, $3) RETURNING id',
-                [telegramId, username, myRefCode]
-            );
-            userId = insertRes.rows[0].id;
-            isNew = true;
+            try {
+                // IMPORTANT: Ensure these column names match your manual table creation exactly!
+                const insertRes = await pool.query(
+                    'INSERT INTO users (telegram_id, username, referral_code) VALUES ($1, $2, $3) RETURNING id',
+                    [telegramId, username, myRefCode]
+                );
+                userId = insertRes.rows[0].id;
+                isNew = true;
+            } catch (insertErr) {
+                console.error("INSERT FAILED:", insertErr.message, insertErr.detail);
+                throw insertErr; // Re-throw to catch block below
+            }
 
             // Initialize Game State
-            await pool.query(
-                'INSERT INTO game_state (user_id) VALUES ($1)',
-                [userId]
-            );
+            try {
+                await pool.query(
+                    'INSERT INTO game_state (user_id) VALUES ($1)',
+                    [userId]
+                );
+                console.log(`Initialized game state for user ID ${userId}`);
+            } catch (stateErr) {
+                console.error("GAME STATE INIT FAILED:", stateErr.message);
+                throw stateErr;
+            }
 
             // Handle Referral
             if (referralCode) {
@@ -69,15 +100,17 @@ app.post('/api/user/init', async (req, res) => {
                          [referrerId, telegramId, username]
                      );
                      
-                     // Reward Referrer (Update their state directly)
+                     // Reward Referrer
                      await pool.query(`
                         UPDATE game_state 
-                        SET coins = coins + 500, bomb_boosters = bomb_boosters + 1, referrals_count = referrals_count + 1 
+                        SET coins = coins + 500, bomb_boosters = bomb_boosters + 1
                         WHERE user_id = $1
                      `, [referrerId]);
+                     console.log(`Referral processed: User ${userId} referred by ${referrerId}`);
                  }
             }
         } else {
+            console.log(`User found: ${username} (${telegramId})`);
             userId = userRes.rows[0].id;
         }
 
@@ -96,12 +129,12 @@ app.post('/api/user/init', async (req, res) => {
             isNew 
         });
     } catch (err) {
-        console.error("DB Init Error:", err);
+        console.error("DB Init Error (General):", err);
         res.status(500).json({ error: 'Database error', details: err.message });
     }
 });
 
-// 2. Save Game State - ACUM SALVAM SI TOTAL PURCHASE AMOUNT
+// 2. Save Game State
 app.post('/api/game/save', async (req, res) => {
     const { telegramId, state, inventory } = req.body;
     
@@ -136,7 +169,7 @@ app.post('/api/game/save', async (req, res) => {
             state.totalTimePlayed,
             state.adsViewed,
             state.lastDailyCompleted,
-            state.tonPurchases, // Added TON Stats
+            state.tonPurchases,
             userId
         ]);
 
@@ -147,7 +180,7 @@ app.post('/api/game/save', async (req, res) => {
     }
 });
 
-// 3. Record Purchase - NEW ENDPOINT PENTRU TABELUL PURCHASES
+// 3. Record Purchase
 app.post('/api/shop/purchase', async (req, res) => {
     const { telegramId, item, cost } = req.body;
     
@@ -156,11 +189,11 @@ app.post('/api/shop/purchase', async (req, res) => {
         if (userRes.rows.length === 0) return res.status(404).json({ error: 'User not found' });
         const userId = userRes.rows[0].id;
 
-        // Insert into purchases table
         await pool.query(
             'INSERT INTO purchases (user_id, item_name, cost) VALUES ($1, $2, $3)',
             [userId, item, cost]
         );
+        console.log(`Purchase recorded: User ${userId} bought ${item} for ${cost}`);
 
         res.json({ success: true });
     } catch (err) {

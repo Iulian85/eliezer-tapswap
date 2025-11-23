@@ -22,7 +22,7 @@ import { CelebrationOverlay } from './components/CelebrationOverlay';
 import { ShopModal } from './components/ShopModal';
 import { WalletModal } from './components/WalletModal';
 import { FrensModal } from './components/FrensModal';
-import { RotateCcw, Trophy, Move, Play, ChevronRight, Lock, CheckCircle, Zap, Save, Download, Clock, Calendar, Coins, Target, Plus, ShoppingBag, Shuffle, BarChart3, Home, RefreshCw, X, Loader, HelpCircle, Info, Sparkles, Crosshair, Bomb, Disc, Wallet, Users, User } from 'lucide-react';
+import { RotateCcw, Trophy, Move, Play, ChevronRight, Lock, CheckCircle, Zap, Save, Download, Clock, Calendar, Coins, Target, Plus, ShoppingBag, Shuffle, BarChart3, Home, RefreshCw, X, Loader, HelpCircle, Info, Sparkles, Crosshair, Bomb, Disc, Wallet, Users, User, Smartphone } from 'lucide-react';
 import { TonConnectButton, useTonWallet, useTonConnectUI } from '@tonconnect/ui-react';
 
 // Utility to convert TON to Nanotons
@@ -49,7 +49,7 @@ const DEFAULT_STATS: UserStats = {
     friends: []
 };
 
-// Sound Utility (omitted for brevity, same as before)
+// Sound Utility
 const playExplosionSound = (type: 'normal' | 'mega' | 'super' | 'rainbow' = 'normal') => {
   try {
     const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
@@ -61,7 +61,29 @@ const playExplosionSound = (type: 'normal' | 'mega' | 'super' | 'rainbow' = 'nor
     masterGain.gain.value = 0.5; 
     
     const now = ctx.currentTime;
-    // ... sound logic ...
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    
+    osc.connect(gain);
+    gain.connect(masterGain);
+    
+    if (type === 'mega' || type === 'rainbow') {
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(150, now);
+        osc.frequency.exponentialRampToValueAtTime(40, now + 0.5);
+        gain.gain.setValueAtTime(1, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
+        osc.start(now);
+        osc.stop(now + 0.5);
+    } else {
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(200, now);
+        osc.frequency.exponentialRampToValueAtTime(50, now + 0.3);
+        gain.gain.setValueAtTime(0.5, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+        osc.start(now);
+        osc.stop(now + 0.3);
+    }
   } catch (e) {}
 };
 
@@ -90,8 +112,9 @@ const applyDifficulty = (level: LevelConfig, diff: Difficulty): LevelConfig => {
 const App: React.FC = () => {
   const [tonConnectUI] = useTonConnectUI();
   const wallet = useTonWallet();
-  const [telegramName, setTelegramName] = useState<string>("You");
+  const [telegramName, setTelegramName] = useState<string>("Loading...");
   const [telegramId, setTelegramId] = useState<number | null>(null);
+  const [isTelegramUser, setIsTelegramUser] = useState<boolean>(true); // Default true, set to false if check fails
 
   const [board, setBoard] = useState<Board>([]);
   const [score, setScore] = useState(0);
@@ -137,13 +160,20 @@ const App: React.FC = () => {
 
   const [hasSave, setHasSave] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   
   const lastSwapRef = useRef<number[] | null>(null);
   const winProcessed = useRef(false);
 
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 2500);
+  };
+
   const showAd = useCallback((onComplete: () => void) => {
     const isTelegram = (window as any).Telegram?.WebApp?.initData;
     if (!isTelegram) {
+        // Should not happen with strict check, but safe fallback
         setUserStats(prev => ({...prev, adsViewed: prev.adsViewed + 1}));
         onComplete();
         return;
@@ -167,87 +197,92 @@ const App: React.FC = () => {
     }
   }, []);
 
-  // Initialize Telegram User and Sync with Database
+  // Initialize User and Sync with Database (STRICT TELEGRAM)
   useEffect(() => {
-      const tg = (window as any).Telegram?.WebApp;
-      if (tg) {
+      const initApp = async () => {
+          const tg = (window as any).Telegram?.WebApp;
+          
+          if (!tg) {
+              setIsTelegramUser(false);
+              setIsLoading(false);
+              return;
+          }
+
           tg.ready();
           tg.expand();
-          if (tg.initDataUnsafe?.user) {
-              const user = tg.initDataUnsafe.user;
-              setTelegramName(user.first_name);
-              setTelegramId(user.id);
+          
+          const user = tg.initDataUnsafe?.user;
+          const startParam = tg.initDataUnsafe?.start_param;
+
+          if (!user || !user.id) {
+              console.error("No Telegram user detected");
+              setIsTelegramUser(false);
+              setIsLoading(false);
+              return;
+          }
+
+          const id = user.id;
+          const first_name = user.first_name || "Unknown";
+
+          setTelegramName(first_name);
+          setTelegramId(id);
+
+          // 2. Sync with Backend
+          try {
+              // DEBUG: remove after testing
+              // alert(`Connecting for ID: ${id}`); 
               
-              // SYNC WITH SERVER
-              const startParam = tg.initDataUnsafe.start_param;
-
-              api.initUser(user.id, user.first_name, startParam).then(data => {
-                  if (data && data.success) {
-                      // 1. Game State
-                      if (data.gameState) {
-                          setInventory(prev => ({
-                              ...prev,
-                              coins: data.gameState.coins || 0,
-                              boosters: {
-                                  bomb: data.gameState.bomb_boosters || 1,
-                                  extraMoves: data.gameState.extra_moves_boosters || 1,
-                                  shuffle: data.gameState.shuffle_boosters || 1
-                              }
-                          }));
-                          setCurrentLevelIndex(Math.max(0, (data.gameState.current_level || 1) - 1));
-                          setLastDailyCompleted(data.gameState.last_daily_completed);
-                      }
-
-                      // 2. Mapping Stats + Friends + Purchases
-                      setUserStats(prev => ({
+              const data = await api.initUser(id, first_name, startParam);
+              
+              if (data && data.success) {
+                  // alert("Data Synced Successfully!"); // DEBUG
+                  if (data.gameState) {
+                      setInventory(prev => ({
                           ...prev,
-                          totalScore: parseInt(data.gameState?.total_score || '0'),
-                          totalTimePlayed: data.gameState?.total_time_played || 0,
-                          adsViewed: data.gameState?.ads_viewed || 0,
-                          tonPurchases: parseFloat(data.gameState?.ton_purchases_total || '0'),
-                          referralCode: data.user.referral_code,
-                          
-                          // Map DB Friends to Frontend Interface
-                          friends: data.friends ? data.friends.map((f: any) => ({
-                              id: f.id,
-                              name: f.friend_name,
-                              bonusEarned: f.bonus_earned,
-                              date: new Date().toLocaleDateString() // Fallback as DB date might differ
-                          })) : [],
-
-                          // Map DB Purchases to Frontend Interface
-                          purchaseHistory: data.purchases ? data.purchases.map((p: any) => ({
-                              id: p.id,
-                              item: p.item_name,
-                              cost: parseFloat(p.cost),
-                              date: new Date(p.transaction_date).toLocaleDateString()
-                          })) : []
+                          coins: data.gameState.coins || 0,
+                          boosters: {
+                              bomb: data.gameState.bomb_boosters || 1,
+                              extraMoves: data.gameState.extra_moves_boosters || 1,
+                              shuffle: data.gameState.shuffle_boosters || 1
+                          }
                       }));
-
-                  } else {
-                      // Fallback
-                      const saved = loadGame();
-                      if (saved) {
-                         setInventory(saved.inventory || DEFAULT_INVENTORY);
-                         setUserStats(prev => ({ ...DEFAULT_STATS, ...(saved.stats || {}) }));
-                         setLastDailyCompleted(saved.lastDailyCompleted || null);
-                         if (saved.levelIndex >= 0) {
-                             setCurrentLevelIndex(saved.levelIndex);
-                         }
-                      }
+                      setCurrentLevelIndex(Math.max(0, (data.gameState.current_level || 1) - 1));
+                      setLastDailyCompleted(data.gameState.last_daily_completed);
                   }
-              });
+
+                  setUserStats(prev => ({
+                      ...prev,
+                      totalScore: parseInt(data.gameState?.total_score || '0'),
+                      totalTimePlayed: data.gameState?.total_time_played || 0,
+                      adsViewed: data.gameState?.ads_viewed || 0,
+                      tonPurchases: parseFloat(data.gameState?.ton_purchases_total || '0'),
+                      referralCode: data.user.referral_code,
+                      friends: data.friends ? data.friends.map((f: any) => ({
+                          id: f.id,
+                          name: f.friend_name,
+                          bonusEarned: f.bonus_earned,
+                          date: new Date().toLocaleDateString()
+                      })) : [],
+                      purchaseHistory: data.purchases ? data.purchases.map((p: any) => ({
+                          id: p.id,
+                          item: p.item_name,
+                          cost: parseFloat(p.cost),
+                          date: new Date(p.transaction_date).toLocaleDateString()
+                      })) : []
+                  }));
+              } else {
+                 // alert("Sync Failed. Check Server Logs."); // DEBUG
+                  // Fallback for offline (optional, maybe disable if you want strict online)
+              }
+          } catch (e: any) {
+              console.error("Init Error:", e);
+              alert("Connection Error: " + (e.message || JSON.stringify(e)));
+          } finally {
+              setIsLoading(false);
           }
-      } else {
-          const saved = loadGame();
-          if (saved) {
-              if (saved.board && saved.board.length > 0) setHasSave(true);
-              setInventory(saved.inventory || DEFAULT_INVENTORY);
-              setUserStats(prev => ({ ...DEFAULT_STATS, ...(saved.stats || {}) }));
-              setLastDailyCompleted(saved.lastDailyCompleted || null);
-              if (saved.levelIndex >= 0) setCurrentLevelIndex(saved.levelIndex);
-          }
-      }
+      };
+
+      initApp();
   }, []);
 
   useEffect(() => {
@@ -300,11 +335,6 @@ const App: React.FC = () => {
           if (isWalletOpen) setIsWalletOpen(false);
       }
   }, [wallet, isShopOpen, isWalletOpen]);
-
-  const showToast = (msg: string) => {
-    setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 2000);
-  };
 
   useEffect(() => {
     if (gameState !== 'PLAYING') return;
@@ -532,7 +562,7 @@ const App: React.FC = () => {
       return { success: false, message: "Invalid Code" };
   };
 
-  // Game Loop (omitted for brevity, same as existing)
+  // Game Loop
   useEffect(() => {
     if (gameState !== 'PLAYING') return;
     let timeoutId: ReturnType<typeof setTimeout>;
@@ -543,8 +573,7 @@ const App: React.FC = () => {
         const swapContext = comboMultiplier === 1 ? lastSwapRef.current : null;
         const { board: boardAfterClear, scoreDelta, clearedCandies, specialEvents } = processMatches(board, swapContext);
         
-        // ... (Match visualization logic)
-        // ... (Update score and progress)
+        // ... Match Logic ...
         const newScore = score + (scoreDelta * comboMultiplier);
         setScore(newScore);
 
@@ -759,7 +788,7 @@ const App: React.FC = () => {
         
         const itemName = item === 'bomb' ? 'Bomb' : item === 'extraMoves' ? '+5 Moves' : 'Shuffle';
         
-        // --- KEY UPDATE: RECORD PURCHASE IN DB ---
+        // Record Purchase in DB
         if (telegramId) {
             await api.recordPurchase(telegramId, itemName, cost);
         }
@@ -844,15 +873,39 @@ const App: React.FC = () => {
       if (!wallet) { if (tonConnectUI) tonConnectUI.openModal(); showToast("Connect TON Wallet to view assets!"); } else { setIsWalletOpen(true); }
   };
 
+  if (!isTelegramUser) {
+      return (
+          <div className="w-full h-full flex flex-col items-center justify-center bg-game-bg text-white p-8 text-center">
+              <Smartphone size={64} className="mb-4 text-white/50" />
+              <h1 className="text-2xl font-black mb-2">Telegram Only</h1>
+              <p className="text-white/60 mb-6">This game is designed to be played exclusively within the Telegram app.</p>
+              <a href="https://t.me/" className="bg-blue-500 hover:bg-blue-600 px-6 py-3 rounded-xl font-bold transition-colors">
+                  Open Telegram
+              </a>
+          </div>
+      );
+  }
+
+  if (isLoading) {
+      return (
+          <div className="w-full h-full flex flex-col items-center justify-center bg-game-bg text-white">
+              <Loader size={48} className="animate-spin text-game-accent mb-4" />
+              <div className="text-xl font-bold animate-pulse">Connecting...</div>
+          </div>
+      );
+  }
+
   return (
     <div className="relative w-full h-full max-w-md mx-auto flex flex-col bg-game-bg overflow-hidden text-white font-sans select-none shadow-2xl">
+      {/* Toast Notification */}
       <div className={`absolute top-24 left-1/2 transform -translate-x-1/2 z-[100] transition-all duration-300 pointer-events-none ${toastMessage ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'}`}>
         <div className="bg-black/80 text-white px-6 py-2 rounded-full backdrop-blur-md border border-white/10 shadow-xl font-bold flex items-center gap-2 text-sm sm:text-base whitespace-nowrap">
            <Zap size={16} className="text-yellow-400 fill-yellow-400" />
            {toastMessage}
         </div>
       </div>
-      {/* ... [Rest of JSX is identical to previous, ensuring all overlays and components are rendered] ... */}
+      
+      {/* App Body - Identical to previous */}
       {isShuffling && (
         <div className="absolute inset-0 z-[80] flex items-center justify-center bg-black/60 backdrop-blur-md animate-in fade-in duration-200">
              <div className="flex flex-col items-center gap-4">
@@ -865,6 +918,7 @@ const App: React.FC = () => {
         </div>
       )}
       <ComboVisualsOverlay active={comboVisuals?.active || false} type={comboVisuals?.type || null} />
+      
       {gameState === 'INTRO' && (
           <div className="flex-1 flex flex-col h-full animate-in fade-in duration-500 relative">
              <div className="text-center shrink-0 py-6 px-6 flex flex-col items-center animate-in slide-in-from-top-4 duration-700">
@@ -873,6 +927,7 @@ const App: React.FC = () => {
                     <img src="https://raw.githubusercontent.com/Iulian85/eliezer-token/main/ELZR.png" alt="Eliezer Logo" className="relative w-28 h-28 object-contain drop-shadow-[0_10px_20px_rgba(0,0,0,0.5)] transition-transform duration-300 hover:scale-110" />
                  </div>
                  <h1 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-b from-white to-purple-200 drop-shadow-lg tracking-tight leading-none">ELIEZER<br/><span className="text-transparent bg-clip-text bg-gradient-to-b from-yellow-300 to-amber-600">RUSH</span></h1>
+                 <div className="text-xs text-white/40 mt-1 font-mono">{telegramName}</div>
              </div>
              <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-4 custom-scrollbar flex flex-col gap-3">
                  <div className="bg-white/5 p-1 rounded-xl flex gap-1 shrink-0">
@@ -912,6 +967,8 @@ const App: React.FC = () => {
              </div>
           </div>
       )}
+      
+      {/* ... [Rest of components: GameBoard, Popups, Modals] are identical to original ... */}
       {previewData && (
           <div className="absolute inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-sm animate-in fade-in duration-200 p-4">
               <div className="bg-[#2a1b3d] w-full max-w-sm rounded-[2rem] border border-white/10 p-6 shadow-2xl flex flex-col gap-6 relative">
@@ -1011,13 +1068,11 @@ const App: React.FC = () => {
                     <div className="flex flex-col items-center justify-center gap-1 shrink-0 bg-black/30 p-2 rounded-lg border border-white/10 z-10"><div className="flex gap-1"><div className="w-8 h-8"><CandyIcon color={CandyColor.Multi} type={CandyType.Rainbow} /></div><div className="w-8 h-8"><CandyIcon color={CandyColor.Red} type={CandyType.Normal} /></div></div><div className="text-[10px] font-bold text-white/40">SWAP</div></div>
                    <div className="min-w-0 flex-1 z-10"><div className="font-black text-base text-pink-300 mb-1 drop-shadow-md">Rainbow Blast</div><div className="text-xs text-white/80 leading-snug">Clear <span className="text-white font-bold underline">ALL</span> candies of that color! Created by matching 5 in a row.</div></div>
                 </div>
-                {/* ... other combos ... */}
             </div>
             <button onClick={() => setShowInfoModal(false)} className="w-full mt-6 py-3 rounded-xl bg-white/10 font-bold text-white hover:bg-white/20 transition-all">Close Guide</button>
           </div>
         </div>
       )}
-      {/* ... Leaderboard, Celebration, Lost screens same as before ... */}
       {showLeaderboard && (
         <div className="absolute inset-0 z-[70] flex items-center justify-center bg-black/80 backdrop-blur-sm animate-in fade-in duration-200 p-4">
           <div className="bg-game-bg border border-white/20 w-full max-w-xs rounded-[2rem] shadow-2xl relative flex flex-col max-h-[80vh] overflow-hidden">
@@ -1082,7 +1137,7 @@ const ComboVisualsOverlay: React.FC<{ active: boolean; type: 'MEGA_BOOM' | 'SUPE
     if (!active || !type) return null;
     return (
         <div className="absolute inset-0 z-[85] flex items-center justify-center pointer-events-none overflow-hidden">
-            {/* Visuals omitted for brevity, same as existing */}
+             {/* Visuals omitted for brevity */}
         </div>
     );
 };

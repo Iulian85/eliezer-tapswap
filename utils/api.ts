@@ -1,20 +1,28 @@
 
 // Frontend Client for the Backend API
+// Note: On Railway, the Node server serves the frontend, so relative path '/api' is correct.
 const API_URL = '/api'; 
 
 export const api = {
     initUser: async (telegramId: number, username: string, referralCode?: string) => {
         try {
+            console.log(`Sending initUser request for ${username} (${telegramId})...`);
             const res = await fetch(`${API_URL}/user/init`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ telegramId, username, referralCode })
             });
-            if (!res.ok) throw new Error('Network response was not ok');
+            
+            if (!res.ok) {
+                const errText = await res.text();
+                // This error will be caught by the App.tsx try/catch and shown in alert
+                throw new Error(`Server Error (${res.status}): ${errText}`);
+            }
+            
             return await res.json();
-        } catch (e) {
+        } catch (e: any) {
             console.error("API Error (Init):", e);
-            return null;
+            throw e; // Re-throw to be handled by UI
         }
     },
 
@@ -28,30 +36,37 @@ export const api = {
                     totalTimePlayed: saveData.stats.totalTimePlayed,
                     adsViewed: saveData.stats.adsViewed,
                     lastDailyCompleted: saveData.lastDailyCompleted,
-                    tonPurchases: saveData.stats.tonPurchases // Send this for update
+                    tonPurchases: saveData.stats.tonPurchases
                 },
                 inventory: saveData.inventory
             };
 
-            await fetch(`${API_URL}/game/save`, {
+            const res = await fetch(`${API_URL}/game/save`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
             });
+
+            if (!res.ok) {
+                 console.error("Save failed:", await res.text());
+            }
         } catch (e) {
-            console.error("Save Error:", e);
+            console.error("Save API Error:", e);
         }
     },
 
     recordPurchase: async (telegramId: number, item: string, cost: number) => {
         try {
-            await fetch(`${API_URL}/shop/purchase`, {
+            const res = await fetch(`${API_URL}/shop/purchase`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ telegramId, item, cost })
             });
+             if (!res.ok) {
+                 console.error("Purchase failed:", await res.text());
+            }
         } catch (e) {
-            console.error("Purchase Record Error:", e);
+            console.error("Purchase Record API Error:", e);
         }
     },
 
