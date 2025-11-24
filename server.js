@@ -232,7 +232,7 @@ app.post('/api/user/redeem', async (req, res) => {
 });
 
 app.post('/api/game/save', async (req, res) => {
-    const { telegramId, state, inventory, board } = req.body;
+    const { telegramId, state, inventory } = req.body;
     const tid = String(telegramId);
     
     try {
@@ -240,55 +240,43 @@ app.post('/api/game/save', async (req, res) => {
         if (userRes.rows.length === 0) return res.status(404).json({ error: 'User not found' });
         const userId = userRes.rows[0].id;
 
-        const currentLevel = state.levelIndex || 1;
-        const totalScore = state.totalScore || 0;
-        const levelScore = state.score || 0; // Current level score
-        const movesLeft = state.moves || 0;
-        const timeLeft = state.timeLeft || 0;
-        const boardJson = board ? JSON.stringify(board) : null;
-        
+        // FIXUL AICI – NU MAI PUNE 1 NICIODATĂ DACĂ AI LEVEL MAI MARE!
+        const currentLevel = (state.levelIndex && state.levelIndex > 0) ? state.levelIndex : 1;
+
         await pool.query(`
             UPDATE game_state 
             SET 
                 current_level = $1,
                 total_score = $2,
-                level_score = $3,
-                moves_left = $4,
-                time_left = $5,
-                board_state = $6,
-                coins = $7,
-                bomb_boosters = $8,
-                extra_moves_boosters = $9,
-                shuffle_boosters = $10,
-                total_time_played = $11,
-                ads_viewed = $12,
-                last_daily_completed = $13,
-                ton_purchases_total = $14,
+                coins = $3,
+                bomb_boosters = $4,
+                extra_moves_boosters = $5,
+                shuffle_boosters = $6,
+                total_time_played = total_time_played + $7,
+                ads_viewed = ads_viewed + $8,
+                last_daily_completed = $9,
+                ton_purchases_total = $10,
                 updated_at = NOW()
-            WHERE user_id = $15
+            WHERE user_id = $11
         `, [
             currentLevel,
-            totalScore,
-            levelScore,
-            movesLeft,
-            timeLeft,
-            boardJson,
-            inventory.coins,
-            inventory.boosters.bomb,
-            inventory.boosters.extraMoves,
-            inventory.boosters.shuffle,
-            state.totalTimePlayed,
-            state.adsViewed,
-            state.lastDailyCompleted,
-            state.tonPurchases,
+            Number(state.totalScore) || 0,
+            Number(inventory.coins) || 0,
+            Number(inventory.boosters?.bomb) || 1,
+            Number(inventory.boosters?.extraMoves) || 1,
+            Number(inventory.boosters?.shuffle) || 1,
+            Number(state.totalTimePlayed) || 0,
+            Number(state.adsViewed) || 0,
+            state.lastDailyCompleted || null,
+            Number(state.tonPurchases) || 0,
             userId
         ]);
         
-        console.log(`Saved for ${tid}: Level ${currentLevel}, Board saved: ${!!boardJson}`);
+        console.log(`SAVED → Level ${currentLevel} | Score ${state.totalScore} | Coins ${inventory.coins}`);
         res.json({ success: true });
     } catch (err) {
-        console.error("Save Game Error:", getErrorMessage(err));
-        res.status(500).json({ error: 'Save failed', details: getErrorMessage(err) });
+        console.error("Save Error:", getErrorMessage(err));
+        res.status(500).json({ error: 'Save failed' });
     }
 });
 
