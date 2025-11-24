@@ -24,11 +24,10 @@ const pool = new pg.Pool({
   ssl: process.env.DATABASE_URL?.includes('railway.app') ? { rejectUnauthorized: false } : false
 });
 
+// Inițializare tabele (rulează o dată la start)
 const initDB = async () => {
   const client = await pool.connect();
   try {
-    console.log("Initializing database schema...");
-
     await client.query(`
       CREATE TABLE IF NOT EXISTS users (
         id SERIAL PRIMARY KEY,
@@ -59,33 +58,12 @@ const initDB = async () => {
       );
     `);
 
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS friends (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-        friend_telegram_id TEXT,
-        friend_name TEXT,
-        bonus_earned INTEGER DEFAULT 500,
-        created_at TIMESTAMP DEFAULT NOW()
-      );
-    `);
-
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS purchases (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-        item_name TEXT,
-        cost DECIMAL,
-        transaction_date TIMESTAMP DEFAULT NOW()
-      );
-    `);
-
+    // Forțăm TEXT pe telegram_id dacă e vechi
     await client.query(`ALTER TABLE users ALTER COLUMN telegram_id TYPE TEXT USING telegram_id::TEXT;`).catch(() => {});
-    await client.query(`ALTER TABLE friends ALTER COLUMN friend_telegram_id TYPE TEXT USING friend_telegram_id::TEXT;`).catch(() => {});
 
-    console.log("Database schema ready!");
+    console.log("DB ready!");
   } catch (err) {
-    console.error("DB Init Error:", err.message);
+    console.error("DB init error:", err.message);
   } finally {
     client.release();
   }
@@ -96,8 +74,7 @@ app.listen(port, async () => {
   if (process.env.DATABASE_URL) await initDB();
 });
 
-// ==================== API ENDPOINTS ====================
-
+// INIT USER + ÎNCARCĂ LEVEL-UL CORECT
 app.post('/api/user/init', async (req, res) => {
   const { telegramId, username, referralCode } = req.body;
   if (!telegramId) return res.status(400).json({ error: 'Missing telegramId' });
@@ -108,24 +85,30 @@ app.post('/api/user/init', async (req, res) => {
 
     if (!user) {
       const code = 'ELZR-' + Math.random().toString(36).substring(2, 8).toUpperCase();
-      const insert = await pool.query(
-        'INSERT INTO users (telegram_id, username, referral_code) VALUES ($1, $2, $3) RETURNING id',
+      await pool.query(
+        'INSERT INTO users (telegram_id, username, referral_code) VALUES ($1, $2, $3)',
         [tid, username || 'Player', code]
       );
-      await pool.query('INSERT INTO game_state (user_id) VALUES ($1)', [insert.rows[0].id]);
       user = (await pool.query('SELECT * FROM users WHERE telegram_id = $1', [tid])).rows[0];
+      await pool.query('INSERT INTO game_state (user_id, current_level) VALUES ($1, 1)', [user.id]);
     }
 
     const gameState = (await pool.query('SELECT * FROM game_state WHERE user_id = $1', [user.id])).rows[0]
-      || (await pool.query('INSERT INTO game_state (user_id) VALUES ($1) RETURNING *', [user.id])).rows[0];
+      || { current_level: 1, total_score: 0, coins: 0, bomb_boosters: 1, extra_moves_boosters: 1, shuffle_boosters: 1 };
 
-    res.json({ success: true, user, gameState, friends: [], purchases: [], isNew: true });
+    res.json({
+      success: true,
+      user,
+      gameState,
+      isNew: !user.username
+    });
   } catch (err) {
     console.error("Init error:", err.message);
     res.status(500).json({ error: err.message });
   }
 });
 
+// SALVARE – ACUM SALVEAZĂ LEVEL-UL CORECT!
 app.post('/api/game/save', async (req, res) => {
   const { telegramId, state, inventory } = req.body;
   const tid = String(telegramId);
@@ -134,35 +117,38 @@ app.post('/api/game/save', async (req, res) => {
     const user = (await pool.query('SELECT id FROM users WHERE telegram_id = $1', [tid])).rows[0];
     if (!user) return res.status(404).json({ error: 'User not found' });
 
+    const levelToSave = Number(state.levelIndex) || 1;
+
     await pool.query(`
-      UPDATE game_state SET
-        current_level = $1,
-        total_score = $2,
-        coins = $3,
-        bomb_boosters = $4,
-        extra_moves_boosters = $5,
-        shuffle_boosters = $6,
-        total_time_played = total_time_played + $7,
-        ads_viewed = ads_viewed + $8,
-        last_daily_completed = $9,
+      INSERT INTO game_state (user_id, current_level, total_score, coins, bomb_boosters, extra_moves_boosters, shuffle_boosters, total_time_played, ads_viewed, ton_purchases_total, last_daily_completed)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      ON CONFLICT (user_id) DO UPDATE SET
+        current_level = $2,
+        total_score = $3,
+        coins = $4,
+        bomb_boosters = $5,
+        extra_moves_boosters = $6,
+        shuffle_boosters = $7,
+        total_time_played = game_state.total_time_played + $8,
+        ads_viewed = game_state.ads_viewed + $9,
         ton_purchases_total = $10,
+        last_daily_completed = $11,
         updated_at = NOW()
-      WHERE user_id = $11
     `, [
-      Number(state.levelIndex) || 1,
+      user.id,
+      levelToSave,
       Number(state.totalScore) || 0,
       Number(inventory.coins) || 0,
-      Number(inventory.boosters?.bomb) || 0,
-      Number(inventory.boosters?.extraMoves) || 0,
-      Number(inventory.boosters?.shuffle) || 0,
+      Number(inventory.boosters?.bomb) || 1,
+      Number(inventory.boosters?.extraMoves) || 1,
+      Number(inventory.boosters?.shuffle) || 1,
       Number(state.totalTimePlayed) || 0,
       Number(state.adsViewed) || 0,
-      state.lastDailyCompleted || null,
       Number(state.tonPurchases) || 0,
-      user.id
+      state.lastDailyCompleted || null
     ]);
 
-    console.log(`SAVED → Level ${state.levelIndex} | Coins ${inventory.coins} | Score ${state.totalScore}`);
+    console.log(`SAVED → User ${tid} | Level ${levelToSave} | Coins ${inventory.coins}`);
     res.json({ success: true });
   } catch (err) {
     console.error("Save error:", err.message);
@@ -170,6 +156,7 @@ app.post('/api/game/save', async (req, res) => {
   }
 });
 
+// WALLET
 app.post('/api/user/wallet', async (req, res) => {
   const { telegramId, walletAddress } = req.body;
   const tid = String(telegramId);
@@ -178,7 +165,6 @@ app.post('/api/user/wallet', async (req, res) => {
     console.log(`Wallet saved: ${walletAddress}`);
     res.json({ success: true });
   } catch (err) {
-    console.error("Wallet error:", err.message);
     res.status(500).json({ error: 'Failed' });
   }
 });
