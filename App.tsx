@@ -188,6 +188,13 @@ const App: React.FC = () => {
     } else { onComplete(); }
   }, []);
 
+  // Sync Wallet to DB when connected
+  useEffect(() => {
+    if (wallet && telegramId) {
+        api.updateWallet(telegramId, wallet.account.address);
+    }
+  }, [wallet, telegramId]);
+
   useEffect(() => {
       const initApp = async () => {
           const tg = (window as any).Telegram?.WebApp;
@@ -225,6 +232,7 @@ const App: React.FC = () => {
                               adsViewed: data.gameState?.ads_viewed || 0,
                               tonPurchases: parseFloat(data.gameState?.ton_purchases_total || '0'),
                               referralCode: data.user.referral_code,
+                              redeemedReferralCode: data.user.redeemed_code, // Load redeemed code from DB
                               friends: data.friends ? data.friends.map((f: any) => ({
                                   id: f.id,
                                   name: f.friend_name,
@@ -411,14 +419,6 @@ const App: React.FC = () => {
               }
           }
           
-          // IMPORTANT: If campaign, we save the NEXT level index because the user just completed this one.
-          // currentLevelIndex is 0-based. So if we beat L1 (idx 0), we want to save that we are on L2 (idx 1).
-          // But our DB stores Level Number (1-based). So L2 is '2'.
-          // api.ts adds +1 to the levelIndex we send.
-          // So sending (currentLevelIndex + 1) -> sends 1 -> becomes 2. Correct.
-          // If we send (currentLevelIndex) -> sends 0 -> becomes 1. Incorrect.
-          // So we send currentLevelIndex + 1 if Campaign.
-          
           const nextLevelIndex = playMode === 'CAMPAIGN' ? currentLevelIndex + 1 : currentLevelIndex;
 
           const saveData = {
@@ -432,25 +432,34 @@ const App: React.FC = () => {
       }
   }, [gameState, playMode, score, inventory, currentLevelIndex, lastDailyCompleted, telegramId]);
 
+  // NEW: Handle Redeem Code via API for persistent storage
   const handleRedeemReferral = (code: string) => {
-      if (code === userStats.referralCode) return { success: false, message: "Cannot use your own code" };
-      if (userStats.redeemedReferralCode) return { success: false, message: "Already redeemed a code" };
-      if (code.length >= 5) {
-          const bonusCoins = 500; const bonusBomb = 1;
-          const newInv = { ...inventory, coins: inventory.coins + bonusCoins, boosters: { ...inventory.boosters, bomb: inventory.boosters.bomb + bonusBomb } };
-          setInventory(newInv);
-          const newStats = { ...userStats, redeemedReferralCode: code };
-          setUserStats(newStats);
-          
-          const saveData = {
-             board: [], score: 0, moves: 0, timeLeft: 0, levelIndex: currentLevelIndex, goalProgress: {}, timestamp: Date.now(),
-             inventory: newInv, stats: newStats, lastDailyCompleted
-          };
-          saveGame(saveData);
-          persistData(saveData);
-          return { success: true, message: `Redeemed! +${bonusCoins} Coins` };
-      }
-      return { success: false, message: "Invalid Code" };
+      if (!telegramId) return { success: false, message: "Not connected" };
+      
+      // Since FrensModal expects a synchronous return for now in its current implementation,
+      // but api.redeemReferral is async, we will trigger it and return a loading state or 
+      // simple true/false. However, to show the correct error from server, we should probably
+      // update the FrensModal to handle async, but for minimal changes:
+      
+      // We'll wrap this in a way that App updates its state when the promise resolves.
+      api.redeemReferral(telegramId, code).then(res => {
+          if (res.success && res.rewards) {
+              const newInv = {
+                  ...inventory,
+                  coins: inventory.coins + res.rewards.coins,
+                  boosters: { ...inventory.boosters, bomb: inventory.boosters.bomb + res.rewards.bomb }
+              };
+              setInventory(newInv);
+              setUserStats(prev => ({ ...prev, redeemedReferralCode: code }));
+              showToast(res.message);
+          } else {
+              showToast(res.message || "Failed to redeem");
+          }
+      });
+      
+      // Return a provisional success so the modal doesn't error immediately, 
+      // the real result comes via toast
+      return { success: true, message: "Checking code..." };
   };
 
   useEffect(() => {

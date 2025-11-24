@@ -21,6 +21,32 @@ export const api = {
         }
     },
 
+    updateWallet: async (telegramId: number | string, walletAddress: string) => {
+        try {
+            await fetch(`${API_URL}/user/wallet`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ telegramId, walletAddress })
+            });
+        } catch (e) {
+            console.error("Wallet Update API Error:", e);
+        }
+    },
+
+    redeemReferral: async (telegramId: number | string, code: string) => {
+        try {
+            const res = await fetch(`${API_URL}/user/redeem`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ telegramId, code })
+            });
+            return await res.json();
+        } catch (e) {
+            console.error("Redeem API Error:", e);
+            return { success: false, message: "Connection Failed" };
+        }
+    },
+
     saveGame: async (telegramId: number | string, saveData: any) => {
         try {
             // saveData.levelIndex here is the raw Level Number (1-based) as decided by App.tsx

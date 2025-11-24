@@ -97,7 +97,6 @@ const initDB = async () => {
     `);
 
     // 2. MIGRATION: Force telegram_id to BIGINT (Fixes legacy tables)
-    // This is safe to run multiple times.
     await client.query(`ALTER TABLE users ALTER COLUMN telegram_id TYPE BIGINT;`);
     await client.query(`ALTER TABLE friends ALTER COLUMN friend_telegram_id TYPE BIGINT;`);
 
@@ -171,6 +170,70 @@ app.post('/api/user/init', async (req, res) => {
     }
 });
 
+// NEW: Endpoint to save wallet address
+app.post('/api/user/wallet', async (req, res) => {
+    const { telegramId, walletAddress } = req.body;
+    const tid = String(telegramId);
+    
+    try {
+        await pool.query('UPDATE users SET wallet_address = $1 WHERE telegram_id = $2', [walletAddress, tid]);
+        console.log(`Wallet updated for ${tid}: ${walletAddress}`);
+        res.json({ success: true });
+    } catch (err) {
+        console.error("Wallet Update Error:", getErrorMessage(err));
+        res.status(500).json({ error: 'Update failed' });
+    }
+});
+
+// NEW: Endpoint to redeem referral code
+app.post('/api/user/redeem', async (req, res) => {
+    const { telegramId, code } = req.body;
+    const tid = String(telegramId);
+    
+    try {
+        // 1. Get User
+        const userRes = await pool.query('SELECT id, referral_code, redeemed_code FROM users WHERE telegram_id = $1', [tid]);
+        if (userRes.rows.length === 0) return res.status(404).json({ success: false, message: 'User not found' });
+        const user = userRes.rows[0];
+
+        // 2. Validations
+        if (user.redeemed_code) return res.json({ success: false, message: "Already redeemed a code" });
+        if (user.referral_code === code) return res.json({ success: false, message: "Cannot use your own code" });
+
+        // 3. Find Referrer
+        const referrerRes = await pool.query('SELECT id, telegram_id, username FROM users WHERE referral_code = $1', [code]);
+        if (referrerRes.rows.length === 0) return res.json({ success: false, message: "Invalid Code" });
+        const referrer = referrerRes.rows[0];
+
+        // 4. Update User (Set redeemed_code, give bonus)
+        const bonusCoins = 500;
+        const bonusBomb = 1;
+        
+        await pool.query('BEGIN');
+        
+        // Mark code as redeemed for user
+        await pool.query('UPDATE users SET redeemed_code = $1 WHERE id = $2', [code, user.id]);
+        // Give bonuses to User
+        await pool.query('UPDATE game_state SET coins = coins + $1, bomb_boosters = bomb_boosters + $2 WHERE user_id = $3', [bonusCoins, bonusBomb, user.id]);
+
+        await pool.query('COMMIT');
+
+        console.log(`User ${tid} redeemed code ${code}`);
+        
+        // Return the new inventory adjustments so frontend can update
+        res.json({ 
+            success: true, 
+            message: `Redeemed! +${bonusCoins} Coins`, 
+            rewards: { coins: bonusCoins, bomb: bonusBomb } 
+        });
+
+    } catch (err) {
+        await pool.query('ROLLBACK');
+        console.error("Redeem Error:", getErrorMessage(err));
+        res.status(500).json({ success: false, message: 'Server error during redemption' });
+    }
+});
+
 app.post('/api/game/save', async (req, res) => {
     const { telegramId, state, inventory } = req.body;
     const tid = String(telegramId);
@@ -180,7 +243,6 @@ app.post('/api/game/save', async (req, res) => {
         if (userRes.rows.length === 0) return res.status(404).json({ error: 'User not found' });
         const userId = userRes.rows[0].id;
 
-        // Ensure we handle potential undefined values gracefully
         const currentLevel = state.levelIndex || 1;
         const totalScore = state.totalScore || 0;
         const coins = inventory.coins || 0;
