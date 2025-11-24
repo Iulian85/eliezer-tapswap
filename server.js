@@ -107,54 +107,52 @@ app.post('/api/user/init', async (req, res) => {
 
 // SALVARE 100% CORECTĂ – LEVEL-UL RĂMÂNE EXACT CE TRIMIȚI
 app.post('/api/game/save', async (req, res) => {
-  const { telegramId, state, inventory } = req.body;
-  const tid = String(telegramId);
+    const { telegramId, state, inventory } = req.body;
+    const tid = String(telegramId);
+    
+    try {
+        const userRes = await pool.query('SELECT id FROM users WHERE telegram_id = $1', [tid]);
+        if (userRes.rows.length === 0) return res.status(404).json({ error: 'User not found' });
+        const userId = userRes.rows[0].id;
 
-  try {
-    const userRes = await pool.query('SELECT id FROM users WHERE telegram_id = $1', [tid]);
-    if (userRes.rows.length === 0) return res.status(404).json({ error: 'User not found' });
-    const userId = userRes.rows[0].id;
+        // FIXUL AICI – NU MAI PUNE 1 NICIODATĂ DACĂ AI LEVEL MAI MARE!
+        const currentLevel = (state.levelIndex && state.levelIndex > 0) ? state.levelIndex : 1;
 
-    const level = Number(state.levelIndex) || 1;  // <- LEVEL-UL EXACT PE CARE ÎL AI ÎN JOC
-
-    await pool.query(`
-      INSERT INTO game_state (
-        user_id, current_level, total_score, coins, bomb_boosters,
-        extra_moves_boosters, shuffle_boosters, total_time_played,
-        ads_viewed, ton_purchases_total, last_daily_completed
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-      ON CONFLICT (user_id) DO UPDATE SET
-        current_level = EXCLUDED.current_level,
-        total_score = EXCLUDED.total_score,
-        coins = EXCLUDED.coins,
-        bomb_boosters = EXCLUDED.bomb_boosters,
-        extra_moves_boosters = EXCLUDED.extra_moves_boosters,
-        shuffle_boosters = EXCLUDED.shuffle_boosters,
-        total_time_played = game_state.total_time_played + EXCLUDED.total_time_played,
-        ads_viewed = game_state.ads_viewed + EXCLUDED.ads_viewed,
-        ton_purchases_total = EXCLUDED.ton_purchases_total,
-        last_daily_completed = EXCLUDED.last_daily_completed,
-        updated_at = NOW()
-    `, [
-      userId,
-      level,
-      Number(state.totalScore) || 0,
-      Number(inventory.coins) || 0,
-      Number(inventory.boosters?.bomb) || 1,
-      Number(inventory.boosters?.extraMoves) || 1,
-      Number(inventory.boosters?.shuffle) || 1,
-      Number(state.totalTimePlayed) || 0,
-      Number(state.adsViewed) || 0,
-      Number(state.tonPurchases) || 0,
-      state.lastDailyCompleted || null
-    ]);
-
-    console.log(`SAVED → Level: ${level} | Coins: ${inventory.coins} | Score: ${state.totalScore}`);
-    res.json({ success: true });
-  } catch (err) {
-    console.error("Save error:", err.message);
-    res.status(500).json({ error: err.message });
-  }
+        await pool.query(`
+            UPDATE game_state 
+            SET 
+                current_level = $1,
+                total_score = $2,
+                coins = $3,
+                bomb_boosters = $4,
+                extra_moves_boosters = $5,
+                shuffle_boosters = $6,
+                total_time_played = total_time_played + $7,
+                ads_viewed = ads_viewed + $8,
+                last_daily_completed = $9,
+                ton_purchases_total = $10,
+                updated_at = NOW()
+            WHERE user_id = $11
+        `, [
+            currentLevel,
+            Number(state.totalScore) || 0,
+            Number(inventory.coins) || 0,
+            Number(inventory.boosters?.bomb) || 1,
+            Number(inventory.boosters?.extraMoves) || 1,
+            Number(inventory.boosters?.shuffle) || 1,
+            Number(state.totalTimePlayed) || 0,
+            Number(state.adsViewed) || 0,
+            state.lastDailyCompleted || null,
+            Number(state.tonPurchases) || 0,
+            userId
+        ]);
+        
+        console.log(`SAVED → Level ${currentLevel} | Score ${state.totalScore} | Coins ${inventory.coins}`);
+        res.json({ success: true });
+    } catch (err) {
+        console.error("Save Error:", getErrorMessage(err));
+        res.status(500).json({ error: 'Save failed' });
+    }
 });
 
 // WALLET
