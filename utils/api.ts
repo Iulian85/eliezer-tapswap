@@ -1,38 +1,33 @@
 
-// Frontend Client for the Backend API
-// Note: On Railway, the Node server serves the frontend, so relative path '/api' is correct.
 const API_URL = '/api'; 
 
 export const api = {
     initUser: async (telegramId: number | string, username: string, referralCode?: string) => {
         try {
             console.log(`Sending initUser request for ${username} (${telegramId})...`);
-            // telegramId might be string or number, ensure it handles both
             const res = await fetch(`${API_URL}/user/init`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ telegramId, username, referralCode })
             });
-            
             if (!res.ok) {
                 const errText = await res.text();
-                // This error will be caught by the App.tsx try/catch and shown in alert
                 throw new Error(`Server Error (${res.status}): ${errText}`);
             }
-            
             return await res.json();
         } catch (e: any) {
             console.error("API Error (Init):", e);
-            throw e; // Re-throw to be handled by UI
+            throw e;
         }
     },
 
     saveGame: async (telegramId: number | string, saveData: any) => {
         try {
+            // saveData.levelIndex here is the raw Level Number (1-based) as decided by App.tsx
             const payload = {
                 telegramId,
                 state: {
-                    levelIndex: saveData.levelIndex >= 0 ? saveData.levelIndex + 1 : 1,
+                    levelIndex: saveData.levelIndex, 
                     totalScore: saveData.stats.totalScore,
                     totalTimePlayed: saveData.stats.totalTimePlayed,
                     adsViewed: saveData.stats.adsViewed,
@@ -63,12 +58,8 @@ export const api = {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ telegramId, item, cost })
             });
-             if (!res.ok) {
-                 console.error("Purchase failed:", await res.text());
-            }
-        } catch (e) {
-            console.error("Purchase Record API Error:", e);
-        }
+             if (!res.ok) console.error("Purchase failed:", await res.text());
+        } catch (e) { console.error("Purchase Record API Error:", e); }
     },
 
     getLeaderboard: async () => {
@@ -76,8 +67,6 @@ export const api = {
             const res = await fetch(`${API_URL}/leaderboard`);
             if (!res.ok) return [];
             return await res.json();
-        } catch (e) {
-            return [];
-        }
+        } catch (e) { return []; }
     }
 };
