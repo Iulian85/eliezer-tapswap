@@ -24,7 +24,7 @@ const pool = new pg.Pool({
   ssl: process.env.DATABASE_URL?.includes('railway.app') ? { rejectUnauthorized: false } : false
 });
 
-// Inițializare tabele (rulează o dată la start)
+// Inițializare tabele
 const initDB = async () => {
   const client = await pool.connect();
   try {
@@ -43,7 +43,7 @@ const initDB = async () => {
     await client.query(`
       CREATE TABLE IF NOT EXISTS game_state (
         id SERIAL PRIMARY KEY,
-        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        user_id INTEGER UNIQUE REFERENCES users(id) ON DELETE CASCADE,
         current_level INTEGER DEFAULT 1,
         total_score BIGINT DEFAULT 0,
         coins INTEGER DEFAULT 0,
@@ -58,9 +58,7 @@ const initDB = async () => {
       );
     `);
 
-    // Forțăm TEXT pe telegram_id dacă e vechi
     await client.query(`ALTER TABLE users ALTER COLUMN telegram_id TYPE TEXT USING telegram_id::TEXT;`).catch(() => {});
-
     console.log("DB ready!");
   } catch (err) {
     console.error("DB init error:", err.message);
@@ -74,9 +72,9 @@ app.listen(port, async () => {
   if (process.env.DATABASE_URL) await initDB();
 });
 
-// INIT USER + ÎNCARCĂ LEVEL-UL CORECT
+// INIT + LOAD LEVEL CORECT
 app.post('/api/user/init', async (req, res) => {
-  const { telegramId, username, referralCode } = req.body;
+  const { telegramId, username } = req.body;
   if (!telegramId) return res.status(400).json({ error: 'Missing telegramId' });
   const tid = String(telegramId);
 
@@ -93,14 +91,13 @@ app.post('/api/user/init', async (req, res) => {
       await pool.query('INSERT INTO game_state (user_id, current_level) VALUES ($1, 1)', [user.id]);
     }
 
-    const gameState = (await pool.query('SELECT * FROM game_state WHERE user_id = $1', [user.id])).rows[0]
-      || { current_level: 1, total_score: 0, coins: 0, bomb_boosters: 1, extra_moves_boosters: 1, shuffle_boosters: 1 };
+    const gameState = (await pool.query('SELECT * FROM game_state WHERE user_id = $1', [user.id])).rows[0];
 
     res.json({
       success: true,
       user,
-      gameState,
-      isNew: !user.username
+      gameState: gameState || { current_level: 1, total_score: 0, coins: 0, bomb_boosters: 1, extra_moves_boosters: 1, shuffle_boosters: 1 },
+      isNew: false
     });
   } catch (err) {
     console.error("Init error:", err.message);
@@ -108,35 +105,39 @@ app.post('/api/user/init', async (req, res) => {
   }
 });
 
-// SALVARE – ACUM SALVEAZĂ LEVEL-UL CORECT!
+// SALVARE 100% CORECTĂ – LEVEL-UL RĂMÂNE EXACT CE TRIMIȚI
 app.post('/api/game/save', async (req, res) => {
   const { telegramId, state, inventory } = req.body;
   const tid = String(telegramId);
 
   try {
-    const user = (await pool.query('SELECT id FROM users WHERE telegram_id = $1', [tid])).rows[0];
-    if (!user) return res.status(404).json({ error: 'User not found' });
+    const userRes = await pool.query('SELECT id FROM users WHERE telegram_id = $1', [tid]);
+    if (userRes.rows.length === 0) return res.status(404).json({ error: 'User not found' });
+    const userId = userRes.rows[0].id;
 
-    const levelToSave = Number(state.levelIndex) || 1;
+    const level = Number(state.levelIndex) || 1;  // <- LEVEL-UL EXACT PE CARE ÎL AI ÎN JOC
 
     await pool.query(`
-      INSERT INTO game_state (user_id, current_level, total_score, coins, bomb_boosters, extra_moves_boosters, shuffle_boosters, total_time_played, ads_viewed, ton_purchases_total, last_daily_completed)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      INSERT INTO game_state (
+        user_id, current_level, total_score, coins, bomb_boosters,
+        extra_moves_boosters, shuffle_boosters, total_time_played,
+        ads_viewed, ton_purchases_total, last_daily_completed
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
       ON CONFLICT (user_id) DO UPDATE SET
-        current_level = $2,
-        total_score = $3,
-        coins = $4,
-        bomb_boosters = $5,
-        extra_moves_boosters = $6,
-        shuffle_boosters = $7,
-        total_time_played = game_state.total_time_played + $8,
-        ads_viewed = game_state.ads_viewed + $9,
-        ton_purchases_total = $10,
-        last_daily_completed = $11,
+        current_level = EXCLUDED.current_level,
+        total_score = EXCLUDED.total_score,
+        coins = EXCLUDED.coins,
+        bomb_boosters = EXCLUDED.bomb_boosters,
+        extra_moves_boosters = EXCLUDED.extra_moves_boosters,
+        shuffle_boosters = EXCLUDED.shuffle_boosters,
+        total_time_played = game_state.total_time_played + EXCLUDED.total_time_played,
+        ads_viewed = game_state.ads_viewed + EXCLUDED.ads_viewed,
+        ton_purchases_total = EXCLUDED.ton_purchases_total,
+        last_daily_completed = EXCLUDED.last_daily_completed,
         updated_at = NOW()
     `, [
-      user.id,
-      levelToSave,
+      userId,
+      level,
       Number(state.totalScore) || 0,
       Number(inventory.coins) || 0,
       Number(inventory.boosters?.bomb) || 1,
@@ -148,7 +149,7 @@ app.post('/api/game/save', async (req, res) => {
       state.lastDailyCompleted || null
     ]);
 
-    console.log(`SAVED → User ${tid} | Level ${levelToSave} | Coins ${inventory.coins}`);
+    console.log(`SAVED → Level: ${level} | Coins: ${inventory.coins} | Score: ${state.totalScore}`);
     res.json({ success: true });
   } catch (err) {
     console.error("Save error:", err.message);
