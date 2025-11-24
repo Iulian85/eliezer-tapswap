@@ -1,3 +1,4 @@
+
 import express from 'express';
 import pg from 'pg';
 import cors from 'cors';
@@ -62,6 +63,10 @@ const initDB = async () => {
         user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
         current_level INTEGER DEFAULT 1,
         total_score BIGINT DEFAULT 0,
+        level_score INTEGER DEFAULT 0,
+        moves_left INTEGER DEFAULT 0,
+        time_left INTEGER DEFAULT 0,
+        board_state TEXT,
         coins INTEGER DEFAULT 0,
         bomb_boosters INTEGER DEFAULT 1,
         extra_moves_boosters INTEGER DEFAULT 1,
@@ -95,9 +100,17 @@ const initDB = async () => {
       );
     `);
 
-    // 2. MIGRATION: Force telegram_id to BIGINT (Fixes legacy tables)
+    // 2. MIGRATION: Ensure all columns exist
     await client.query(`ALTER TABLE users ALTER COLUMN telegram_id TYPE BIGINT;`);
     await client.query(`ALTER TABLE friends ALTER COLUMN friend_telegram_id TYPE BIGINT;`);
+    
+    // Add Game State Columns if missing
+    await client.query(`ALTER TABLE game_state ADD COLUMN IF NOT EXISTS wallet_address TEXT;`); 
+    await client.query(`ALTER TABLE game_state ADD COLUMN IF NOT EXISTS board_state TEXT;`);
+    await client.query(`ALTER TABLE game_state ADD COLUMN IF NOT EXISTS level_score INTEGER DEFAULT 0;`);
+    await client.query(`ALTER TABLE game_state ADD COLUMN IF NOT EXISTS moves_left INTEGER DEFAULT 0;`);
+    await client.query(`ALTER TABLE game_state ADD COLUMN IF NOT EXISTS time_left INTEGER DEFAULT 0;`);
+    await client.query(`ALTER TABLE game_state ADD COLUMN IF NOT EXISTS last_daily_completed TEXT;`);
 
     await client.query('COMMIT');
     console.log("✅ Database schema verified and updated.");
@@ -169,7 +182,6 @@ app.post('/api/user/init', async (req, res) => {
     }
 });
 
-// NEW: Endpoint to save wallet address
 app.post('/api/user/wallet', async (req, res) => {
     const { telegramId, walletAddress } = req.body;
     const tid = String(telegramId);
@@ -184,48 +196,34 @@ app.post('/api/user/wallet', async (req, res) => {
     }
 });
 
-// NEW: Endpoint to redeem referral code
 app.post('/api/user/redeem', async (req, res) => {
     const { telegramId, code } = req.body;
     const tid = String(telegramId);
-    
     try {
-        // 1. Get User
         const userRes = await pool.query('SELECT id, referral_code, redeemed_code FROM users WHERE telegram_id = $1', [tid]);
         if (userRes.rows.length === 0) return res.status(404).json({ success: false, message: 'User not found' });
         const user = userRes.rows[0];
 
-        // 2. Validations
         if (user.redeemed_code) return res.json({ success: false, message: "Already redeemed a code" });
         if (user.referral_code === code) return res.json({ success: false, message: "Cannot use your own code" });
 
-        // 3. Find Referrer
-        const referrerRes = await pool.query('SELECT id, telegram_id, username FROM users WHERE referral_code = $1', [code]);
+        const referrerRes = await pool.query('SELECT id FROM users WHERE referral_code = $1', [code]);
         if (referrerRes.rows.length === 0) return res.json({ success: false, message: "Invalid Code" });
-        const referrer = referrerRes.rows[0];
 
-        // 4. Update User (Set redeemed_code, give bonus)
         const bonusCoins = 500;
         const bonusBomb = 1;
         
         await pool.query('BEGIN');
-        
-        // Mark code as redeemed for user
         await pool.query('UPDATE users SET redeemed_code = $1 WHERE id = $2', [code, user.id]);
-        // Give bonuses to User
         await pool.query('UPDATE game_state SET coins = coins + $1, bomb_boosters = bomb_boosters + $2 WHERE user_id = $3', [bonusCoins, bonusBomb, user.id]);
-
         await pool.query('COMMIT');
 
         console.log(`User ${tid} redeemed code ${code}`);
-        
-        // Return the new inventory adjustments so frontend can update
         res.json({ 
             success: true, 
             message: `Redeemed! +${bonusCoins} Coins`, 
             rewards: { coins: bonusCoins, bomb: bonusBomb } 
         });
-
     } catch (err) {
         await pool.query('ROLLBACK');
         console.error("Redeem Error:", getErrorMessage(err));
@@ -234,7 +232,7 @@ app.post('/api/user/redeem', async (req, res) => {
 });
 
 app.post('/api/game/save', async (req, res) => {
-    const { telegramId, state, inventory } = req.body;
+    const { telegramId, state, inventory, board } = req.body;
     const tid = String(telegramId);
     
     try {
@@ -244,27 +242,38 @@ app.post('/api/game/save', async (req, res) => {
 
         const currentLevel = state.levelIndex || 1;
         const totalScore = state.totalScore || 0;
-        const coins = inventory.coins || 0;
-
+        const levelScore = state.score || 0; // Current level score
+        const movesLeft = state.moves || 0;
+        const timeLeft = state.timeLeft || 0;
+        const boardJson = board ? JSON.stringify(board) : null;
+        
         await pool.query(`
             UPDATE game_state 
             SET 
                 current_level = $1,
                 total_score = $2,
-                coins = $3,
-                bomb_boosters = $4,
-                extra_moves_boosters = $5,
-                shuffle_boosters = $6,
-                total_time_played = $7,
-                ads_viewed = $8,
-                last_daily_completed = $9,
-                ton_purchases_total = $10,
+                level_score = $3,
+                moves_left = $4,
+                time_left = $5,
+                board_state = $6,
+                coins = $7,
+                bomb_boosters = $8,
+                extra_moves_boosters = $9,
+                shuffle_boosters = $10,
+                total_time_played = $11,
+                ads_viewed = $12,
+                last_daily_completed = $13,
+                ton_purchases_total = $14,
                 updated_at = NOW()
-            WHERE user_id = $11
+            WHERE user_id = $15
         `, [
             currentLevel,
             totalScore,
-            coins,
+            levelScore,
+            movesLeft,
+            timeLeft,
+            boardJson,
+            inventory.coins,
             inventory.boosters.bomb,
             inventory.boosters.extraMoves,
             inventory.boosters.shuffle,
@@ -275,7 +284,7 @@ app.post('/api/game/save', async (req, res) => {
             userId
         ]);
         
-        console.log(`Saved progress for user ${userId}: Level ${currentLevel}, Score ${totalScore}`);
+        console.log(`Saved for ${tid}: Level ${currentLevel}, Board saved: ${!!boardJson}`);
         res.json({ success: true });
     } catch (err) {
         console.error("Save Game Error:", getErrorMessage(err));
