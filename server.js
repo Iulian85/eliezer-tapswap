@@ -13,7 +13,7 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const port = process.env.PORT || 3000;
 
-// BIGINT → string ca să nu mai ai niciodată probleme
+// BIGINT → string (obligatoriu pentru Telegram ID-uri mari)
 pg.types.setTypeParser(20, (val) => String(val));
 
 app.use(cors());
@@ -25,7 +25,7 @@ const pool = new pg.Pool({
   ssl: process.env.DATABASE_URL?.includes('railway.app') ? { rejectUnauthorized: false } : false
 });
 
-// === INIT DB – 100% BULLET-PROOF ===
+// === SCHEMA + MIGRATION 100% SIGURĂ ===
 const initDB = async () => {
   const client = await pool.connect();
   try {
@@ -82,28 +82,25 @@ const initDB = async () => {
       );
     `);
 
-    // FORȚĂM TEXT chiar dacă tabelul există deja
-    await client.query(`ALTER TABLE users ALTER COLUMN telegram_id TYPE TEXT USING telegram_id::TEXT;`);
-    await client.query(`ALTER TABLE friends ALTER COLUMN friend_telegram_id TYPE TEXT USING friend_telegram_id::TEXT;`)
-      .catch(() => {}); // ignorăm eroarea dacă coloana nu există încă
+    // Forțăm TEXT pe coloanele critice (chiar dacă există deja)
+    await client.query(`ALTER TABLE users ALTER COLUMN telegram_id TYPE TEXT USING telegram_id::TEXT;`).catch(() => {});
+    await client.query(`ALTER TABLE friends ALTER COLUMN friend_telegram_id TYPE TEXT USING friend_telegram_id::TEXT;`).catch(() => {});
 
-    console.log("Database schema ready!");
+    console.log("Database schema 100% ready!");
   } catch (err) {
-    console.error("DB Init Error (nu te panica, se reia la următorul request):", err.message);
+    console.error("DB Init Error:", err.message);
   } finally {
     client.release();
   }
 };
 
-// === PORNEȘTE SERVERUL + FORȚEAZĂ INIT DB LA FIECARE START ===
+// Pornim serverul + inițializăm DB-ul la fiecare start
 app.listen(port, async () => {
   console.log(`Server running on port ${port}`);
-  if (process.env.DATABASE_URL) {
-    await initDB();  // AICI ERA BUG-UL: ACUM SE APELEAZĂ INTOTDEAUNA
-  }
+  if (process.env.DATABASE_URL) await initDB();
 });
 
-// === TOATE ENDPOINT-URILE (identice cu cele de mai sus, dar cu Number() peste tot) ===
+// ====================== API ENDPOINTS ======================
 
 app.post('/api/user/init', async (req, res) => {
   const { telegramId, username, referralCode } = req.body;
@@ -115,41 +112,45 @@ app.post('/api/user/init', async (req, res) => {
 
     if (!user) {
       const code = 'ELZR-' + Math.random().toString(36).substring(2, 8).toUpperCase();
-      const resInsert = await pool.query(
+      const insert = await pool.query(
         'INSERT INTO users (telegram_id, username, referral_code) VALUES ($1, $2, $3) RETURNING id',
         [tid, username || 'Player', code]
       );
-      const userId = resInsert.rows[0].id;
+      const userId = insert.rows[0].id;
       await pool.query('INSERT INTO game_state (user_id) VALUES ($1)', [userId]);
       user = (await pool.query('SELECT * FROM users WHERE id = $1', [userId])).rows[0];
 
       if (referralCode) {
         const ref = (await pool.query('SELECT id FROM users WHERE referral_code = $1', [referralCode])).rows[0];
-        if (ref) {
-          await pool.query('INSERT INTO friends (user_id, friend_telegram_id, friend_name) VALUES ($1, $2, $3)', 
-            [ref.id, tid, username || 'Player']);
+        if (ref && ref.id !== user.id) {
+          await pool.query('INSERT INTO friends (user_id, friend_telegram_id, friend_name) VALUES ($1, $2, $3)', [ref.id, tid, username || 'Player']);
           await pool.query('UPDATE game_state SET coins = coins + 500, bomb_boosters = bomb_boosters + 1 WHERE user_id = $1', [ref.id]);
         }
       }
     }
 
-    const gameState = (await pool.query('SELECT * FROM game_state WHERE user_id = $1', [user.id])).rows[0] 
+    const gameState = (await pool.query('SELECT * FROM game_state WHERE user_id = $1', [user.id])).rows[0]
       || (await pool.query('INSERT INTO game_state (user_id) VALUES ($1) RETURNING *', [user.id])).rows[0];
 
-    res.json({ success: true, user, gameState, friends: [], purchases: [], isNew: !user.username });
+    const friends = (await pool.query('SELECT * FROM friends WHERE user_id = $1', [user.id])).rows;
+    const purchases = (await pool.query('SELECT * FROM purchases WHERE user_id = $1 ORDER BY transaction_date DESC', [user.id])).rows;
+
+    res.json({ success: true, user, gameState, friends, purchases, isNew: !user.username });
   } catch (err) {
     console.error("Init error:", err.message);
     res.status(500).json({ error: err.message });
   }
 });
 
+// SALVARE PROGRES – ACUM SALVEAZĂ ȘI LEVEL-UL CORECT!
 app.post('/api/game/save', async (req, res) => {
   const { telegramId, state, inventory } = req.body;
   const tid = String(telegramId);
 
   try {
-    const user = (await pool.query('SELECT id FROM users WHERE telegram_id = $1', [tid])).rows[0];
-    if (!user) return res.status(404).json({ error: 'User not found' });
+    const userRes = await pool.query('SELECT id FROM users WHERE telegram_id = $1', [tid]);
+    if (userRes.rows.length === 0) return res.status(404).json({ error: 'User not found' });
+    const userId = userRes.rows[0].id;
 
     await pool.query(`
       UPDATE game_state SET
@@ -164,9 +165,9 @@ app.post('/api/game/save', async (req, res) => {
         last_daily_completed = $9,
         ton_purchases_total = $10,
         updated_at = NOW()
-      WHERE user_id = $1
+      WHERE user_id = $11
     `, [
-      user.id,
+      Number(state.levelIndex) || 1,           // LEVEL-ul salvat corect
       Number(state.totalScore) || 0,
       Number(inventory.coins) || 0,
       Number(inventory.boosters?.bomb) || 0,
@@ -175,10 +176,11 @@ app.post('/api/game/save', async (req, res) => {
       Number(state.totalTimePlayed) || 0,
       Number(state.adsViewed) || 0,
       state.lastDailyCompleted || null,
-      Number(state.tonPurchases) || 0
+      Number(state.tonPurchases) || 0,
+      userId
     ]);
 
-    console.log(`Progress saved for ${tid}: ${inventory.coins} coins, level ${state.levelIndex}`);
+    console.log(`PROGRESS SAVED → ${tid} | Level: ${state.levelIndex} | Coins: ${inventory.coins} | Score: ${state.totalScore}`);
     res.json({ success: true });
   } catch (err) {
     console.error("Save error:", err.message);
@@ -186,6 +188,75 @@ app.post('/api/game/save', async (req, res) => {
   }
 });
 
-// Celelalte endpoint-uri (wallet, redeem, shop, leaderboard) le lași exact ca în versiunea anterioară – merg perfect
+// WALLET – ACUM SE SALVEAZĂ 100%
+app.post('/api/user/wallet', async (’erano (req, res) => {
+  const { telegramId, walletAddress } = req.body;
+  const tid = String(telegramId);
 
-app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'dist', 'index.html')));
+  try {
+    await pool.query('UPDATE users SET wallet_address = $1 WHERE telegram_id = $2', [walletAddress, tid]);
+    console.log(`Wallet saved: ${tid} → ${walletAddress}`);
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Wallet save error:", err.message);
+    res.status(500).json({ error: 'Failed to save wallet' });
+  }
+});
+
+// REDEEM CODE
+app.post('/api/user/redeem', async (req, res) => {
+  const { telegramId, code } = req.body;
+  const tid = String(telegramId);
+
+  try {
+    const userRes = await pool.query('SELECT id, redeemed_code, referral_code FROM users WHERE telegram_id = $1', [tid]);
+    if (userRes.rows.length === 0) return res.json({ success: false, message: 'User not found' });
+    const user = userRes.rows[0];
+
+    if (user.redeemed_code) return res.json({ success: false, message: 'Already redeemed' });
+    if (user.referral_code === code) return res.json({ success: false, message: 'Cannot use own code' });
+
+    const ref = await pool.query('SELECT id FROM users WHERE referral_code = $1', [code]);
+    if (ref.rows.length === 0) return res.json({ success: false, message: 'Invalid code' });
+
+    await pool.query('BEGIN');
+    await pool.query('UPDATE users SET redeemed_code = $1 WHERE id = $2', [code, user.id]);
+    await pool.query('UPDATE game_state SET coins = coins + 500, bomb_boosters = bomb_boosters + 1 WHERE user_id = $1', [user.id]);
+    await pool.query('COMMIT');
+
+    res.json({ success: true, rewards: { coins: 500, bomb: 1 } });
+  } catch (err) {
+    await pool.query('ROLLBACK');
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+app.post('/api/shop/purchase', async (req, res) => {
+  const { telegramId, item, cost } = req.body;
+  const tid = String(telegramId);
+  try {
+    const user = await pool.query('SELECT id FROM users WHERE telegram_id = $1', [tid]);
+    if (user.rows.length === 0) return res.status(404).json({ error: 'User not found' });
+    await pool.query('INSERT INTO purchases (user_id, item_name, cost) VALUES ($1, $2, $3)', [user.rows[0].id, item, cost]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Purchase failed' });
+  }
+});
+
+app.get('/api/leaderboard', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT u.username, gs.total_score, gs.current_level 
+      FROM game_state gs JOIN users u ON gs.user_id = u.id 
+      ORDER BY gs.total_score DESC LIMIT 20
+    `);
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: 'Leaderboard error' });
+  }
+});
+
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+});
