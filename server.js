@@ -129,54 +129,58 @@ app.listen(port, () => {
 
 // API Routes
 
-app.post('/api/game/save', async (req, res) => {
-    const { telegramId, state, inventory } = req.body;
+app.post('/api/user/init', async (req, res) => {
+    const { telegramId, username, referralCode } = req.body;
+    if (!telegramId) return res.status(400).json({ error: 'Missing telegramId' });
     const tid = String(telegramId);
-    
+
     try {
-        const userRes = await pool.query('SELECT id FROM users WHERE telegram_id = $1', [tid]);
-        if (userRes.rows.length === 0) return res.status(404).json({ error: 'User not found' });
-        const userId = userRes.rows[0].id;
+        const userRes = await pool.query('SELECT * FROM users WHERE telegram_id = $1', [tid]);
+        let userId;
+        let isNew = false;
 
-        const currentLevel = (state.levelIndex && state.levelIndex > 0) ? state.levelIndex : 1;
+        if (userRes.rows.length === 0) {
+            console.log(`Creating user: ${username} (${tid})`);
+            const code = 'ELZR-' + Math.random().toString(36).substring(2, 8).toUpperCase();
+            const insertRes = await pool.query(
+                'INSERT INTO users (telegram_id, username, referral_code) VALUES ($1, $2, $3) RETURNING id',
+                [tid, username, code]
+            );
+            userId = insertRes.rows[0].id;
+            isNew = true;
 
-        await pool.query(`
-            UPDATE game_state 
-            SET 
-                current_level = $1,
-                total_score = $2,
-                coins = $3,
-                bomb_boosters = $4,
-                extra_moves_boosters = $5,
-                shuffle_boosters = $6,
-                total_time_played = total_time_played + $7,
-                ads_viewed = ads_viewed + $8,
-                last_daily_completed = $9,
-                ton_purchases_total = $10,
-                updated_at = NOW()
-            WHERE user_id = $11
-        `, [
-            currentLevel,
-            Number(state.totalScore) || 0,
-            Number(inventory.coins) || 0,
-            Number(inventory.boosters?.bomb) || 1,
-            Number(inventory.boosters?.extraMoves) || 1,
-            Number(inventory.boosters?.shuffle) || 1,
-            Number(state.totalTimePlayed) || 0,
-            Number(state.adsViewed) || 0,
-            state.lastDailyCompleted || null,
-            Number(state.tonPurchases) || 0,
-            userId
-        ]);
-        
-        console.log(`SAVED → Level ${currentLevel} | Score ${state.totalScore} | Coins ${inventory.coins}`);
-        res.json({ success: true });
+            await pool.query('INSERT INTO game_state (user_id) VALUES ($1)', [userId]);
+
+            if (referralCode) {
+                 const referrerRes = await pool.query('SELECT id FROM users WHERE referral_code = $1', [referralCode]);
+                 if (referrerRes.rows.length > 0) {
+                     const referrerId = referrerRes.rows[0].id;
+                     if (referrerId !== userId) {
+                        await pool.query('INSERT INTO friends (user_id, friend_telegram_id, friend_name) VALUES ($1, $2, $3)', [referrerId, tid, username]);
+                        await pool.query('UPDATE game_state SET coins = coins + 500, bomb_boosters = bomb_boosters + 1 WHERE user_id = $1', [referrerId]);
+                     }
+                 }
+            }
+        } else {
+            userId = userRes.rows[0].id;
+        }
+
+        const user = (await pool.query('SELECT * FROM users WHERE id = $1', [userId])).rows[0];
+        let gameState = (await pool.query('SELECT * FROM game_state WHERE user_id = $1', [userId])).rows[0];
+        if (!gameState) {
+             await pool.query('INSERT INTO game_state (user_id) VALUES ($1)', [userId]);
+             gameState = (await pool.query('SELECT * FROM game_state WHERE user_id = $1', [userId])).rows[0];
+        }
+
+        const friends = (await pool.query('SELECT * FROM friends WHERE user_id = $1', [userId])).rows;
+        const purchases = (await pool.query('SELECT * FROM purchases WHERE user_id = $1 ORDER BY transaction_date DESC', [userId])).rows;
+
+        res.json({ success: true, user, gameState, friends, purchases, isNew });
     } catch (err) {
-        console.error("Save Error:", getErrorMessage(err));
-        res.status(500).json({ error: 'Save failed' });
+        console.error("Init User Error:", getErrorMessage(err));
+        res.status(500).json({ error: 'DB Error', details: getErrorMessage(err) });
     }
 });
-
 
 app.post('/api/user/wallet', async (req, res) => {
     const { telegramId, walletAddress } = req.body;
@@ -227,9 +231,8 @@ app.post('/api/user/redeem', async (req, res) => {
     }
 });
 
-
 app.post('/api/game/save', async (req, res) => {
-    const { telegramId, state, inventory } = req.body;
+    const { telegramId, state, inventory, board } = req.body;
     const tid = String(telegramId);
     
     try {
@@ -237,45 +240,57 @@ app.post('/api/game/save', async (req, res) => {
         if (userRes.rows.length === 0) return res.status(404).json({ error: 'User not found' });
         const userId = userRes.rows[0].id;
 
-        const currentLevel = (state.levelIndex && state.levelIndex > 0) ? state.levelIndex : 1;
-
+        const currentLevel = state.levelIndex || 1;
+        const totalScore = state.totalScore || 0;
+        const levelScore = state.score || 0; // Current level score
+        const movesLeft = state.moves || 0;
+        const timeLeft = state.timeLeft || 0;
+        const boardJson = board ? JSON.stringify(board) : null;
+        
         await pool.query(`
             UPDATE game_state 
             SET 
                 current_level = $1,
                 total_score = $2,
-                coins = $3,
-                bomb_boosters = $4,
-                extra_moves_boosters = $5,
-                shuffle_boosters = $6,
-                total_time_played = total_time_played + $7,
-                ads_viewed = ads_viewed + $8,
-                last_daily_completed = $9,
-                ton_purchases_total = $10,
+                level_score = $3,
+                moves_left = $4,
+                time_left = $5,
+                board_state = $6,
+                coins = $7,
+                bomb_boosters = $8,
+                extra_moves_boosters = $9,
+                shuffle_boosters = $10,
+                total_time_played = $11,
+                ads_viewed = $12,
+                last_daily_completed = $13,
+                ton_purchases_total = $14,
                 updated_at = NOW()
-            WHERE user_id = $11
+            WHERE user_id = $15
         `, [
             currentLevel,
-            Number(state.totalScore) || 0,
-            Number(inventory.coins) || 0,
-            Number(inventory.boosters?.bomb) || 1,
-            Number(inventory.boosters?.extraMoves) || 1,
-            Number(inventory.boosters?.shuffle) || 1,
-            Number(state.totalTimePlayed) || 0,
-            Number(state.adsViewed) || 0,
-            state.lastDailyCompleted || null,
-            Number(state.tonPurchases) || 0,
+            totalScore,
+            levelScore,
+            movesLeft,
+            timeLeft,
+            boardJson,
+            inventory.coins,
+            inventory.boosters.bomb,
+            inventory.boosters.extraMoves,
+            inventory.boosters.shuffle,
+            state.totalTimePlayed,
+            state.adsViewed,
+            state.lastDailyCompleted,
+            state.tonPurchases,
             userId
         ]);
         
-        console.log(`SAVED → Level ${currentLevel} | Score ${state.totalScore} | Coins ${inventory.coins}`);
+        console.log(`Saved for ${tid}: Level ${currentLevel}, Board saved: ${!!boardJson}`);
         res.json({ success: true });
     } catch (err) {
-        console.error("Save Error:", getErrorMessage(err));
-        res.status(500).json({ error: 'Save failed' });
+        console.error("Save Game Error:", getErrorMessage(err));
+        res.status(500).json({ error: 'Save failed', details: getErrorMessage(err) });
     }
 });
-
 
 app.post('/api/shop/purchase', async (req, res) => {
     const { telegramId, item, cost } = req.body;
@@ -291,7 +306,6 @@ app.post('/api/shop/purchase', async (req, res) => {
     }
 });
 
-
 app.get('/api/leaderboard', async (req, res) => {
     try {
         const result = await pool.query(`
@@ -303,6 +317,4 @@ app.get('/api/leaderboard', async (req, res) => {
     } catch (err) { res.status(500).json({ error: 'Error' }); }
 });
 
-
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'dist', 'index.html')));
-
