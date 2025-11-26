@@ -11,8 +11,7 @@
   },
   "dependencies": {
     "@tonconnect/sdk": "^3.0.0",
-    "@tonconnect/ui-react": "^2.3.1",
-    "@twa-dev/sdk": "^8.0.2",
+    "@tonconnect/ui-react": "^2.0.0",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
     "express": "^4.18.2",
