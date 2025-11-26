@@ -52,7 +52,7 @@ export const api = {
         const payload: any = {
             telegramId,
             state: {
-                levelIndex: saveData.levelIndex,           // 1-based întotdeauna!
+                levelIndex: saveData.levelIndex,                    // 1-based!!
                 totalScore: saveData.stats.totalScore,
                 totalTimePlayed: saveData.stats.totalTimePlayed,
                 adsViewed: saveData.stats.adsViewed,
@@ -62,8 +62,8 @@ export const api = {
             inventory: saveData.inventory
         };
 
-        // Trimite board doar dacă există și e diferit de undefined/null
-        if (saveData.board !== undefined && saveData.board !== null) {
+        // Trimitem board doar dacă există (la mișcări normale)
+        if (saveData.board !== undefined) {
             payload.board = saveData.board;
         }
 
@@ -73,9 +73,7 @@ export const api = {
             body: JSON.stringify(payload)
         });
 
-        if (!res.ok) {
-            console.error("Save failed:", await res.text());
-        }
+        if (!res.ok) console.error("Save failed:", await res.text());
     } catch (e) {
         console.error("Save API Error:", e);
     }

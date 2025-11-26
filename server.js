@@ -250,49 +250,41 @@ app.post('/api/game/save', async (req, res) => {
         const boardJson = board !== undefined ? JSON.stringify(board) : null;
 
         await pool.query(`
-            UPDATE game_state 
-            SET 
-                current_level = $1,
-                total_score = $2,
-                level_score = COALESCE($3, level_score),
-                moves_left = COALESCE($4, moves_left),
-                time_left = COALESCE($5, time_left),
-                board_state = COALESCE($6, board_state),
-                coins = $7,
-                bomb_boosters = $8,
-                extra_moves_boosters = $9,
-                shuffle_boosters = $10,
-                total_time_played = COALESCE($11, total_time_played),
-                ads_viewed = COALESCE($12, ads_viewed),
-                last_daily_completed = COALESCE($13, last_daily_completed),
-                ton_purchases_total = COALESCE($14, ton_purchases_total),
-                updated_at = NOW()
-            WHERE user_id = $15
-        `, [
-            currentLevel,
-            totalScore,
-            levelScore !== undefined ? levelScore : null,
-            movesLeft !== undefined ? movesLeft : null,
-            timeLeft !== undefined ? timeLeft : null,
-            boardJson,
-            inventory?.coins ?? 0,
-            inventory?.boosters?.bomb ?? 1,
-            inventory?.boosters?.extraMoves ?? 1,
-            inventory?.boosters?.shuffle ?? 1,
-            state?.totalTimePlayed,
-            state?.adsViewed,
-            state?.lastDailyCompleted,
-            state?.tonPurchases ?? 0,
-            userId
-        ]);
-
-        console.log(`Saved for ${tid}: Level ${currentLevel}, Board: ${boardJson ? 'saved' : 'cleared/unchanged'}`);
-        res.json({ success: true });
-    } catch (err) {
-        console.error("Save Game Error:", getErrorMessage(err));
-        res.status(500).json({ error: 'Save failed', details: getErrorMessage(err) });
-    }
-});
+    UPDATE game_state 
+    SET 
+        current_level = $1,
+        total_score = $2,
+        level_score = COALESCE($3, level_score),
+        moves_left = COALESCE($4, moves_left),
+        time_left = COALESCE($5, time_left),
+        board_state = COALESCE($6, board_state),  -- dacă nu trimitem board → rămâne ce era (sau null)
+        coins = $7,
+        bomb_boosters = $8,
+        extra_moves_boosters = $9,
+        shuffle_boosters = $10,
+        total_time_played = COALESCE($11, total_time_played),
+        ads_viewed = COALESCE($12, ads_viewed),
+        last_daily_completed = COALESCE($13, last_daily_completed),
+        ton_purchases_total = COALESCE($14, ton_purchases_total),
+        updated_at = NOW()
+    WHERE user_id = $15
+`, [
+    currentLevel,           // $1 ← 1-based din frontend
+    totalScore,             // $2
+    levelScore ?? null,     // $3
+    movesLeft ?? null,      // $4
+    timeLeft ?? null,       // $5
+    boardJson,              // $6 ← poate fi null sau JSON
+    inventory?.coins ?? 0,
+    inventory?.boosters?.bomb ?? 1,
+    inventory?.boosters?.extraMoves ?? 1,
+    inventory?.boosters?.shuffle ?? 1,
+    state?.totalTimePlayed ?? null,
+    state?.adsViewed ?? null,
+    state?.lastDailyCompleted ?? null,
+    state?.tonPurchases ?? 0,
+    userId
+]);
 
 app.post('/api/shop/purchase', async (req, res) => {
     const { telegramId, item, cost } = req.body;

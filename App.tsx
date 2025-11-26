@@ -400,49 +400,43 @@ useEffect(() => {
         winProcessed.current = true;
         setIsCelebrating(true);
 
-        // Creștem nivelul imediat în frontend
-        const nextLevelIndex = currentLevelIndex + 1;
-        setCurrentLevelIndex(nextLevelIndex);
+        // Nivelul următor (1-based pentru DB)
+        const nextLevel1Based = currentLevelIndex + 2;  // ex: termin level 1 (index 0) → next = 2
 
-        // Actualizăm scorul total
+        // Actualizăm local
+        setCurrentLevelIndex(prev => prev + 1);
         const newStats = { ...userStats, totalScore: userStats.totalScore + score };
         setUserStats(newStats);
 
-        // Daily reward (dacă e cazul)
-        let newInv = { ...inventory };
+        // Daily reward dacă e cazul
+        let newInv = inventory;
         if (playMode === 'DAILY') {
             const today = getTodayDateString();
             if (lastDailyCompleted !== today) {
-                newInv = { 
-                    ...inventory, 
-                    coins: inventory.coins + 100, 
-                    boosters: { ...inventory.boosters, bomb: inventory.boosters.bomb + 1 } 
-                };
+                newInv = { ...inventory, coins: inventory.coins + 100, boosters: { ...inventory.boosters, bomb: inventory.boosters.bomb + 1 }};
                 setInventory(newInv);
                 setLastDailyCompleted(today);
                 showToast("Daily Reward: +100 Coins & 1 Bomb!");
             }
         }
 
-        // SALVĂM PROGRESUL CORECT – FĂRĂ SĂ ȘTERGEM BOARD-UL CU NULL!
+        // SALVĂM DOAR CE TREBUIE – FĂRĂ NULL-URI
         persistData({
-            levelIndex: nextLevelIndex + 1,  // 1-based pentru DB (ex: termin level 3 → salvează 5)
+            levelIndex: nextLevel1Based,      // AICI E CLAR: 1 → 2, 2 → 3, etc.
             stats: newStats,
             inventory: newInv,
             lastDailyCompleted: playMode === 'DAILY' ? getTodayDateString() : lastDailyCompleted
-            // NU trimitem board → serverul îl păstrează sau îl șterge automat cu COALESCE
+            // NU trimitem board deloc → serverul îl șterge singur cu COALESCE
         });
 
-        // Curățăm sesiunea local (nu mai e nevoie de resume pe nivelul terminat)
         setHasSavedSession(false);
 
-        // Revenim la meniu după animație
         setTimeout(() => {
             setGameState('INTRO');
             setIsCelebrating(false);
         }, 4000);
     }
-}, [gameState, currentLevelIndex, score, userStats, inventory, playMode, lastDailyCompleted]);
+}, [gameState, currentLevelIndex, score, userStats, inventory, playMode, lastDailyCompleted, telegramId]);
 
   const handleRedeemReferral = (code: string) => {
       if (!telegramId) return { success: false, message: "Not connected" };
