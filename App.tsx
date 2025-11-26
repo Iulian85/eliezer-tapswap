@@ -419,15 +419,23 @@ useEffect(() => {
                 showToast("Daily Reward: +100 Coins & 1 Bomb!");
             }
         }
-
-        // SALVĂM DOAR CE TREBUIE – FĂRĂ NULL-URI
-        persistData({
-            levelIndex: nextLevel1Based,      // AICI E CLAR: 1 → 2, 2 → 3, etc.
-            stats: newStats,
-            inventory: newInv,
-            lastDailyCompleted: playMode === 'DAILY' ? getTodayDateString() : lastDailyCompleted
-            // NU trimitem board deloc → serverul îl șterge singur cu COALESCE
-        });
+const saveData = { 
+    board, 
+    score, 
+    moves, 
+    timeLeft, 
+    levelIndex: currentLevelIndex + 1,   // 1-based
+    inventory, 
+    stats: userStats, 
+    lastDailyCompleted 
+};
+        // În useEffect-ul de WON, înlocuiește tot persistData cu:
+persistData({
+    levelIndex: currentLevelIndex + 2,  // 0-based + 2 = 1-based pentru nivelul următor
+    stats: newStats,
+    inventory: newInv,
+    lastDailyCompleted: playMode === 'DAILY' ? getTodayDateString() : lastDailyCompleted
+});
 
         setHasSavedSession(false);
 

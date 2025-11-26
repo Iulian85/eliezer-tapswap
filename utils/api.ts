@@ -49,23 +49,36 @@ export const api = {
 
     saveGame: async (telegramId: number | string, saveData: any) => {
     try {
+        // Normalizăm datele – indiferent cum vin de la App.tsx
+        const levelIndex = saveData.levelIndex ?? saveData.currentLevelIndex + 1;
+        const totalScore = saveData.stats?.totalScore ?? saveData.totalScore ?? 0;
+        const totalTimePlayed = saveData.stats?.totalTimePlayed ?? saveData.totalTimePlayed ?? 0;
+        const adsViewed = saveData.stats?.adsViewed ?? saveData.adsViewed ?? 0;
+        const tonPurchases = saveData.stats?.tonPurchases ?? saveData.tonPurchases ?? 0;
+        const lastDaily = saveData.lastDailyCompleted ?? null;
+
         const payload: any = {
             telegramId,
             state: {
-                levelIndex: saveData.levelIndex,                    // 1-based!!
-                totalScore: saveData.stats.totalScore,
-                totalTimePlayed: saveData.stats.totalTimePlayed,
-                adsViewed: saveData.stats.adsViewed,
-                lastDailyCompleted: saveData.lastDailyCompleted,
-                tonPurchases: saveData.stats.tonPurchases
+                levelIndex: Number(levelIndex),           // 1-based
+                totalScore: Number(totalScore),
+                totalTimePlayed: Number(totalTimePlayed),
+                adsViewed: Number(adsViewed),
+                lastDailyCompleted: lastDaily,
+                tonPurchases: Number(tonPurchases)
             },
-            inventory: saveData.inventory
+            inventory: saveData.inventory || {}
         };
 
-        // Trimitem board doar dacă există (la mișcări normale)
+        // Doar dacă avem board real
         if (saveData.board !== undefined) {
             payload.board = saveData.board;
+            payload.state.score = saveData.score ?? 0;
+            payload.state.moves = saveData.moves ?? 0;
+            payload.state.timeLeft = saveData.timeLeft ?? 0;
         }
+
+        console.log("Saving game state:", payload); // VEZI ÎN CONSOLĂ CE SE TRIMITE
 
         const res = await fetch(`${API_URL}/game/save`, {
             method: 'POST',
@@ -73,7 +86,12 @@ export const api = {
             body: JSON.stringify(payload)
         });
 
-        if (!res.ok) console.error("Save failed:", await res.text());
+        if (!res.ok) {
+            const text = await res.text();
+            console.error("Save failed:", res.status, text);
+        } else {
+            console.log("Save successful");
+        }
     } catch (e) {
         console.error("Save API Error:", e);
     }
