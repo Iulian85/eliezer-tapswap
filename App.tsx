@@ -394,36 +394,55 @@ const App: React.FC = () => {
     });
   };
 
-  useEffect(() => {
-      if (gameState === 'WON' && !winProcessed.current) {
-          winProcessed.current = true;
-          // Clear board state on win
-          const nextLevelIndex = playMode === 'CAMPAIGN' ? currentLevelIndex + 1 : currentLevelIndex;
-          const newStats = { ...userStats, totalScore: userStats.totalScore + score };
-          setUserStats(newStats);
-          
-          let newInv = inventory;
-          if (playMode === 'DAILY') {
-               const today = getTodayDateString();
-               if (lastDailyCompleted !== today) {
-                   newInv = { ...inventory, coins: inventory.coins + 100, boosters: { ...inventory.boosters, bomb: inventory.boosters.bomb + 1 } };
-                   setInventory(newInv);
-                   setLastDailyCompleted(today);
-                   showToast("Daily Reward: +100 Coins & 1 Bomb!");
-               }
-          }
-          
-          const saveData = {
-                board: null, score: 0, moves: 0, timeLeft: 0, 
-                levelIndex: nextLevelIndex,
-                goalProgress: {}, timestamp: Date.now(), inventory: newInv, stats: newStats,
-                lastDailyCompleted: playMode === 'DAILY' ? getTodayDateString() : lastDailyCompleted
-          };
-          // Persist the win and clear the board
-          persistData(saveData);
-          setHasSavedSession(false);
-      }
-  }, [gameState, playMode, score, inventory, currentLevelIndex, lastDailyCompleted, telegramId]);
+  // Înlocuiește tot useEffect-ul ăsta vechi cu ăsta nou:
+useEffect(() => {
+    if (gameState === 'WON' && !winProcessed.current) {
+        winProcessed.current = true;
+        setIsCelebrating(true);
+
+        // Creștem nivelul imediat în frontend
+        const nextLevelIndex = currentLevelIndex + 1;
+        setCurrentLevelIndex(nextLevelIndex);
+
+        // Actualizăm scorul total
+        const newStats = { ...userStats, totalScore: userStats.totalScore + score };
+        setUserStats(newStats);
+
+        // Daily reward (dacă e cazul)
+        let newInv = { ...inventory };
+        if (playMode === 'DAILY') {
+            const today = getTodayDateString();
+            if (lastDailyCompleted !== today) {
+                newInv = { 
+                    ...inventory, 
+                    coins: inventory.coins + 100, 
+                    boosters: { ...inventory.boosters, bomb: inventory.boosters.bomb + 1 } 
+                };
+                setInventory(newInv);
+                setLastDailyCompleted(today);
+                showToast("Daily Reward: +100 Coins & 1 Bomb!");
+            }
+        }
+
+        // SALVĂM PROGRESUL CORECT – FĂRĂ SĂ ȘTERGEM BOARD-UL CU NULL!
+        persistData({
+            levelIndex: nextLevelIndex + 1,  // 1-based pentru DB (ex: termin level 3 → salvează 5)
+            stats: newStats,
+            inventory: newInv,
+            lastDailyCompleted: playMode === 'DAILY' ? getTodayDateString() : lastDailyCompleted
+            // NU trimitem board → serverul îl păstrează sau îl șterge automat cu COALESCE
+        });
+
+        // Curățăm sesiunea local (nu mai e nevoie de resume pe nivelul terminat)
+        setHasSavedSession(false);
+
+        // Revenim la meniu după animație
+        setTimeout(() => {
+            setGameState('INTRO');
+            setIsCelebrating(false);
+        }, 4000);
+    }
+}, [gameState, currentLevelIndex, score, userStats, inventory, playMode, lastDailyCompleted]);
 
   const handleRedeemReferral = (code: string) => {
       if (!telegramId) return { success: false, message: "Not connected" };

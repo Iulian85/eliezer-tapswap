@@ -48,34 +48,38 @@ export const api = {
     },
 
     saveGame: async (telegramId: number | string, saveData: any) => {
-        try {
-            // saveData.levelIndex here is the raw Level Number (1-based) as decided by App.tsx
-            const payload = {
-                telegramId,
-                state: {
-                    levelIndex: saveData.levelIndex, 
-                    totalScore: saveData.stats.totalScore,
-                    totalTimePlayed: saveData.stats.totalTimePlayed,
-                    adsViewed: saveData.stats.adsViewed,
-                    lastDailyCompleted: saveData.lastDailyCompleted,
-                    tonPurchases: saveData.stats.tonPurchases
-                },
-                inventory: saveData.inventory
-            };
+    try {
+        const payload: any = {
+            telegramId,
+            state: {
+                levelIndex: saveData.levelIndex,           // 1-based întotdeauna!
+                totalScore: saveData.stats.totalScore,
+                totalTimePlayed: saveData.stats.totalTimePlayed,
+                adsViewed: saveData.stats.adsViewed,
+                lastDailyCompleted: saveData.lastDailyCompleted,
+                tonPurchases: saveData.stats.tonPurchases
+            },
+            inventory: saveData.inventory
+        };
 
-            const res = await fetch(`${API_URL}/game/save`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-
-            if (!res.ok) {
-                 console.error("Save failed:", await res.text());
-            }
-        } catch (e) {
-            console.error("Save API Error:", e);
+        // Trimite board doar dacă există și e diferit de undefined/null
+        if (saveData.board !== undefined && saveData.board !== null) {
+            payload.board = saveData.board;
         }
-    },
+
+        const res = await fetch(`${API_URL}/game/save`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        if (!res.ok) {
+            console.error("Save failed:", await res.text());
+        }
+    } catch (e) {
+        console.error("Save API Error:", e);
+    }
+},
 
     recordPurchase: async (telegramId: number | string, item: string, cost: number) => {
         try {
