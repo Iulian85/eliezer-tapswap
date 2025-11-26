@@ -1,3 +1,4 @@
+
 import express from 'express';
 import pg from 'pg';
 import cors from 'cors';
@@ -121,7 +122,12 @@ const initDB = async () => {
   }
 };
 
-// --- API ROUTES DEFINED BEFORE LISTENING ---
+app.listen(port, () => {
+    console.log(`Server running on port ${port}`);
+    if (process.env.DATABASE_URL) initDB();
+});
+
+// API Routes
 
 app.post('/api/user/init', async (req, res) => {
     const { telegramId, username, referralCode } = req.body;
@@ -230,7 +236,7 @@ app.post('/api/game/save', async (req, res) => {
     const tid = String(telegramId);
     
     try {
-        const userRes = await pool.query('SELECT id FROM users WHERE telegram_id = $0', [tid]);
+        const userRes = await pool.query('SELECT id FROM users WHERE telegram_id = $1', [tid]);
         if (userRes.rows.length === 0) return res.status(404).json({ error: 'User not found' });
         const userId = userRes.rows[0].id;
 
@@ -244,7 +250,7 @@ app.post('/api/game/save', async (req, res) => {
         await pool.query(`
             UPDATE game_state 
             SET 
-                current_level = $0,
+                current_level = $1,
                 total_score = $2,
                 level_score = $3,
                 moves_left = $4,
@@ -311,14 +317,4 @@ app.get('/api/leaderboard', async (req, res) => {
     } catch (err) { res.status(500).json({ error: 'Error' }); }
 });
 
-// Helper for health check
-app.get('/api/health', (req, res) => res.send('OK'));
-
-// Handle React routing, return all requests to React app
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'dist', 'index.html')));
-
-// START SERVER AFTER ROUTES ARE DEFINED
-app.listen(port, () => {
-    console.log(`Server running on port ${port}`);
-    if (process.env.DATABASE_URL) initDB();
-});
