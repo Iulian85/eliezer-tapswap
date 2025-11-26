@@ -286,6 +286,14 @@ app.post('/api/game/save', async (req, res) => {
     userId
 ]);
 
+        console.log(`Saved for ${tid}: Level ${currentLevel}, Board: ${boardJson ? 'saved' : 'cleared/unchanged'}`);
+        res.json({ success: true });
+    } catch (err) {
+        console.error("Save Game Error:", getErrorMessage(err));
+        res.status(500).json({ error: 'Save failed', details: getErrorMessage(err) });
+    }
+});
+
 app.post('/api/shop/purchase', async (req, res) => {
     const { telegramId, item, cost } = req.body;
     const tid = String(telegramId);
