@@ -48,54 +48,50 @@ export const api = {
     },
 
     saveGame: async (telegramId: number | string, saveData: any) => {
-    try {
-        // Normalizăm datele – indiferent cum vin de la App.tsx
-        const levelIndex = saveData.levelIndex ?? saveData.currentLevelIndex + 1;
-        const totalScore = saveData.stats?.totalScore ?? saveData.totalScore ?? 0;
-        const totalTimePlayed = saveData.stats?.totalTimePlayed ?? saveData.totalTimePlayed ?? 0;
-        const adsViewed = saveData.stats?.adsViewed ?? saveData.adsViewed ?? 0;
-        const tonPurchases = saveData.stats?.tonPurchases ?? saveData.tonPurchases ?? 0;
-        const lastDaily = saveData.lastDailyCompleted ?? null;
+        try {
+            // saveData.levelIndex here is the raw Level Number (1-based) as decided by App.tsx
+            const payload = {
+                telegramId,
+                state: {
+                    levelIndex: saveData.levelIndex, 
+                    totalScore: saveData.stats.totalScore,
+                    totalTimePlayed: saveData.stats.totalTimePlayed,
+                    adsViewed: saveData.stats.adsViewed,
+                    lastDailyCompleted: saveData.lastDailyCompleted,
+                    tonPurchases: saveData.stats.tonPurchases
+                },
+                inventory: saveData.inventory
+            };
 
-        const payload: any = {
-            telegramId,
-            state: {
-                levelIndex: Number(levelIndex),           // 1-based
-                totalScore: Number(totalScore),
-                totalTimePlayed: Number(totalTimePlayed),
-                adsViewed: Number(adsViewed),
-                lastDailyCompleted: lastDaily,
-                tonPurchases: Number(tonPurchases)
-            },
-            inventory: saveData.inventory || {}
-        };
+            const res = await fetch(`${API_URL}/game/save`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
 
-        // Doar dacă avem board real
-        if (saveData.board !== undefined) {
-            payload.board = saveData.board;
-            payload.state.score = saveData.score ?? 0;
-            payload.state.moves = saveData.moves ?? 0;
-            payload.state.timeLeft = saveData.timeLeft ?? 0;
+            if (!res.ok) {
+                 console.error("Save failed:", await res.text());
+            }
+        } catch (e) {
+            console.error("Save API Error:", e);
         }
+    },
 
-        console.log("Saving game state:", payload); // VEZI ÎN CONSOLĂ CE SE TRIMITE
-
-        const res = await fetch(`${API_URL}/game/save`, {
+    loadGame: async (telegramId: number | string) => {
+    try {
+        const res = await fetch(`${API_URL}/game/load`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
+            body: JSON.stringify({ telegramId })
         });
-
-        if (!res.ok) {
-            const text = await res.text();
-            console.error("Save failed:", res.status, text);
-        } else {
-            console.log("Save successful");
-        }
+        if (!res.ok) throw new Error("Failed to load game");
+        return await res.json();
     } catch (e) {
-        console.error("Save API Error:", e);
+        console.error("Load Game API Error:", e);
+        return null;
     }
 },
+
 
     recordPurchase: async (telegramId: number | string, item: string, cost: number) => {
         try {

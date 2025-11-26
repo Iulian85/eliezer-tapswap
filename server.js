@@ -294,6 +294,24 @@ app.post('/api/game/save', async (req, res) => {
     }
 });
 
+app.post('/api/game/load', async (req, res) => {
+    const { telegramId } = req.body;
+    const tid = String(telegramId);
+
+    const userRes = await pool.query('SELECT id FROM users WHERE telegram_id = $1', [tid]);
+    if (userRes.rows.length === 0) return res.status(404).json({ error: 'User not found' });
+
+    const userId = userRes.rows[0].id;
+    const userData = await pool.query('SELECT current_level, stats, inventory FROM users WHERE id = $1', [userId]);
+
+    res.json({
+        levelIndex: userData.rows[0].current_level,
+        stats: JSON.parse(userData.rows[0].stats),
+        inventory: JSON.parse(userData.rows[0].inventory)
+    });
+});
+
+
 app.post('/api/shop/purchase', async (req, res) => {
     const { telegramId, item, cost } = req.body;
     const tid = String(telegramId);
