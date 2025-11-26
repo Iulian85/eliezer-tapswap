@@ -236,7 +236,7 @@ app.post('/api/game/save', async (req, res) => {
     const tid = String(telegramId);
     
     try {
-        const userRes = await pool.query('SELECT id FROM users WHERE telegram_id = $1', [tid]);
+        const userRes = await pool.query('SELECT id FROM users WHERE telegram_id = $0', [tid]);
         if (userRes.rows.length === 0) return res.status(404).json({ error: 'User not found' });
         const userId = userRes.rows[0].id;
 
@@ -250,7 +250,7 @@ app.post('/api/game/save', async (req, res) => {
         await pool.query(`
             UPDATE game_state 
             SET 
-                current_level = $1,
+                current_level = $0,
                 total_score = $2,
                 level_score = $3,
                 moves_left = $4,
