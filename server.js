@@ -1,4 +1,3 @@
-
 import express from 'express';
 import pg from 'pg';
 import cors from 'cors';
@@ -18,7 +17,7 @@ const port = process.env.PORT || 3000;
 pg.types.setTypeParser(20, (val) => String(val));
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '10mb' })); // Increased limit for board state
 app.use(express.static(path.join(__dirname, 'dist')));
 
 const pool = new pg.Pool({
@@ -122,12 +121,7 @@ const initDB = async () => {
   }
 };
 
-app.listen(port, () => {
-    console.log(`Server running on port ${port}`);
-    if (process.env.DATABASE_URL) initDB();
-});
-
-// API Routes
+// --- API ROUTES ---
 
 app.post('/api/user/init', async (req, res) => {
     const { telegramId, username, referralCode } = req.body;
@@ -231,86 +225,74 @@ app.post('/api/user/redeem', async (req, res) => {
     }
 });
 
-// ... tot codul tău de sus rămâne la fel până la ruta /api/game/save
-
 app.post('/api/game/save', async (req, res) => {
     const { telegramId, state, inventory, board } = req.body;
     const tid = String(telegramId);
+    
+    // Sanitize Inputs (Prevent 'undefined' crashing PG)
+    const sanitize = (val, fallback) => (val === undefined || val === null) ? fallback : val;
 
     try {
         const userRes = await pool.query('SELECT id FROM users WHERE telegram_id = $1', [tid]);
         if (userRes.rows.length === 0) return res.status(404).json({ error: 'User not found' });
         const userId = userRes.rows[0].id;
 
-        const currentLevel = state?.levelIndex || 1;
-        const totalScore = state?.totalScore ?? 0;
-        const levelScore = state?.score ?? 0;
-        const movesLeft = state?.moves ?? 0;
-        const timeLeft = state?.timeLeft ?? 0;
-        const boardJson = board !== undefined ? JSON.stringify(board) : null;
+        // Values to Update
+        const currentLevel = sanitize(state?.levelIndex, null); // Can be null if not updating level
+        const totalScore = sanitize(state?.totalScore, null);
+        const levelScore = sanitize(state?.score, null);
+        const movesLeft = sanitize(state?.moves, null);
+        const timeLeft = sanitize(state?.timeLeft, null);
+        const boardJson = board !== undefined ? JSON.stringify(board) : null; // Board can be null to clear
+        
+        // Inventory
+        const coins = sanitize(inventory?.coins, null);
+        const bomb = sanitize(inventory?.boosters?.bomb, null);
+        const extra = sanitize(inventory?.boosters?.extraMoves, null);
+        const shuffle = sanitize(inventory?.boosters?.shuffle, null);
 
+        // Stats
+        const timePlayed = sanitize(state?.totalTimePlayed, null);
+        const ads = sanitize(state?.adsViewed, null);
+        const daily = sanitize(state?.lastDailyCompleted, null);
+        const ton = sanitize(state?.tonPurchases, null);
+
+        // Use COALESCE to keep existing values if null is passed (except for board which might need clearing)
+        // For current_level, we use GREATEST to prevent regression if a value is passed
+        // NOTE: If currentLevel is null, GREATEST(current_level, NULL) returns NULL in standard SQL, so we handle it.
+        
         await pool.query(`
-    UPDATE game_state 
-    SET 
-        current_level = $1,
-        total_score = $2,
-        level_score = COALESCE($3, level_score),
-        moves_left = COALESCE($4, moves_left),
-        time_left = COALESCE($5, time_left),
-        board_state = COALESCE($6, board_state),  -- dacă nu trimitem board → rămâne ce era (sau null)
-        coins = $7,
-        bomb_boosters = $8,
-        extra_moves_boosters = $9,
-        shuffle_boosters = $10,
-        total_time_played = COALESCE($11, total_time_played),
-        ads_viewed = COALESCE($12, ads_viewed),
-        last_daily_completed = COALESCE($13, last_daily_completed),
-        ton_purchases_total = COALESCE($14, ton_purchases_total),
-        updated_at = NOW()
-    WHERE user_id = $15
-`, [
-    currentLevel,           // $1 ← 1-based din frontend
-    totalScore,             // $2
-    levelScore ?? null,     // $3
-    movesLeft ?? null,      // $4
-    timeLeft ?? null,       // $5
-    boardJson,              // $6 ← poate fi null sau JSON
-    inventory?.coins ?? 0,
-    inventory?.boosters?.bomb ?? 1,
-    inventory?.boosters?.extraMoves ?? 1,
-    inventory?.boosters?.shuffle ?? 1,
-    state?.totalTimePlayed ?? null,
-    state?.adsViewed ?? null,
-    state?.lastDailyCompleted ?? null,
-    state?.tonPurchases ?? 0,
-    userId
-]);
-
-        console.log(`Saved for ${tid}: Level ${currentLevel}, Board: ${boardJson ? 'saved' : 'cleared/unchanged'}`);
+            UPDATE game_state 
+            SET 
+                current_level = CASE WHEN $1::int IS NOT NULL THEN GREATEST(current_level, $1::int) ELSE current_level END,
+                total_score = COALESCE($2, total_score),
+                level_score = COALESCE($3, level_score),
+                moves_left = COALESCE($4, moves_left),
+                time_left = COALESCE($5, time_left),
+                board_state = COALESCE($6, board_state),
+                coins = COALESCE($7, coins),
+                bomb_boosters = COALESCE($8, bomb_boosters),
+                extra_moves_boosters = COALESCE($9, extra_moves_boosters),
+                shuffle_boosters = COALESCE($10, shuffle_boosters),
+                total_time_played = COALESCE($11, total_time_played),
+                ads_viewed = COALESCE($12, ads_viewed),
+                last_daily_completed = COALESCE($13, last_daily_completed),
+                ton_purchases_total = COALESCE($14, ton_purchases_total),
+                updated_at = NOW()
+            WHERE user_id = $15
+        `, [
+            currentLevel, totalScore, levelScore, movesLeft, timeLeft, boardJson,
+            coins, bomb, extra, shuffle, timePlayed, ads, daily, ton,
+            userId
+        ]);
+        
+        console.log(`Saved for ${tid}: Level Input=${currentLevel}`);
         res.json({ success: true });
     } catch (err) {
         console.error("Save Game Error:", getErrorMessage(err));
         res.status(500).json({ error: 'Save failed', details: getErrorMessage(err) });
     }
 });
-
-app.post('/api/game/load', async (req, res) => {
-    const { telegramId } = req.body;
-    const tid = String(telegramId);
-
-    const userRes = await pool.query('SELECT id FROM users WHERE telegram_id = $1', [tid]);
-    if (userRes.rows.length === 0) return res.status(404).json({ error: 'User not found' });
-
-    const userId = userRes.rows[0].id;
-    const userData = await pool.query('SELECT current_level, stats, inventory FROM users WHERE id = $1', [userId]);
-
-    res.json({
-        levelIndex: userData.rows[0].current_level,
-        stats: JSON.parse(userData.rows[0].stats),
-        inventory: JSON.parse(userData.rows[0].inventory)
-    });
-});
-
 
 app.post('/api/shop/purchase', async (req, res) => {
     const { telegramId, item, cost } = req.body;
@@ -337,4 +319,14 @@ app.get('/api/leaderboard', async (req, res) => {
     } catch (err) { res.status(500).json({ error: 'Error' }); }
 });
 
+// Helper for health check
+app.get('/api/health', (req, res) => res.send('OK'));
+
+// Handle React routing, return all requests to React app
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'dist', 'index.html')));
+
+// START SERVER AFTER ROUTES ARE DEFINED
+app.listen(port, () => {
+    console.log(`Server running on port ${port}`);
+    if (process.env.DATABASE_URL) initDB();
+});

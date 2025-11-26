@@ -466,20 +466,6 @@ persistData({
   };
 
   useEffect(() => {
-    const fetchSavedProgress = async () => {
-        const savedData = await api.loadGame(telegramId);
-        if (savedData) {
-            setLevelIndex(savedData.levelIndex); // Setează nivelul salvat
-        } else {
-            setLevelIndex(1); // Dacă nu există salvare, pornește de la 1
-        }
-    };
-
-    fetchSavedProgress();
-}, [telegramId]);
-
-
-  useEffect(() => {
     if (gameState !== 'PLAYING') return;
     let timeoutId: ReturnType<typeof setTimeout>;
     const checkBoard = async () => {
@@ -772,7 +758,3 @@ const ComboVisualsOverlay: React.FC<{ active: boolean; type: 'MEGA_BOOM' | 'SUPE
 };
 
 export default App;
-function setLevelIndex(levelIndex: any) {
-    throw new Error('Function not implemented.');
-}
-
