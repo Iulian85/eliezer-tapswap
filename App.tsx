@@ -394,57 +394,50 @@ const App: React.FC = () => {
     });
   };
 
-  // Înlocuiește tot useEffect-ul ăsta vechi cu ăsta nou:
+  useEffect(() => {
+      if (gameState === 'WON' && !winProcessed.current) {
+          winProcessed.current = true;
+          // Clear board state on win
+          const nextLevelIndex = playMode === 'CAMPAIGN' ? currentLevelIndex + 1 : currentLevelIndex;
+          const newStats = { ...userStats, totalScore: userStats.totalScore + score };
+          setUserStats(newStats);
+          
+          let newInv = inventory;
+          if (playMode === 'DAILY') {
+               const today = getTodayDateString();
+               if (lastDailyCompleted !== today) {
+                   newInv = { ...inventory, coins: inventory.coins + 100, boosters: { ...inventory.boosters, bomb: inventory.boosters.bomb + 1 } };
+                   setInventory(newInv);
+                   setLastDailyCompleted(today);
+                   showToast("Daily Reward: +100 Coins & 1 Bomb!");
+               }
+          }
+          
+          const saveData = {
+                board: null, score: 0, moves: 0, timeLeft: 0, 
+                levelIndex: nextLevelIndex,
+                goalProgress: {}, timestamp: Date.now(), inventory: newInv, stats: newStats,
+                lastDailyCompleted: playMode === 'DAILY' ? getTodayDateString() : lastDailyCompleted
+          };
+          // Persist the win and clear the board
+          persistData(saveData);
+          setHasSavedSession(false);
+      }
+  }, [gameState, playMode, score, inventory, currentLevelIndex, lastDailyCompleted, telegramId]);
+
 useEffect(() => {
-    if (gameState === 'WON' && !winProcessed.current) {
-        winProcessed.current = true;
-        setIsCelebrating(true);
-
-        // Nivelul următor (1-based pentru DB)
-        const nextLevel1Based = currentLevelIndex + 2;  // ex: termin level 1 (index 0) → next = 2
-
-        // Actualizăm local
-        setCurrentLevelIndex(prev => prev + 1);
-        const newStats = { ...userStats, totalScore: userStats.totalScore + score };
-        setUserStats(newStats);
-
-        // Daily reward dacă e cazul
-        let newInv = inventory;
-        if (playMode === 'DAILY') {
-            const today = getTodayDateString();
-            if (lastDailyCompleted !== today) {
-                newInv = { ...inventory, coins: inventory.coins + 100, boosters: { ...inventory.boosters, bomb: inventory.boosters.bomb + 1 }};
-                setInventory(newInv);
-                setLastDailyCompleted(today);
-                showToast("Daily Reward: +100 Coins & 1 Bomb!");
-            }
+    const fetchSavedProgress = async () => {
+        const savedData = await api.loadGame(telegramId);
+        if (savedData) {
+            setLevelIndex(savedData.levelIndex); // Setează nivelul salvat
+        } else {
+            setLevelIndex(1); // Dacă nu există salvare, pornește de la 1
         }
-const saveData = { 
-    board, 
-    score, 
-    moves, 
-    timeLeft, 
-    levelIndex: currentLevelIndex + 1,   // 1-based
-    inventory, 
-    stats: userStats, 
-    lastDailyCompleted 
-};
-        // În useEffect-ul de WON, înlocuiește tot persistData cu:
-persistData({
-    levelIndex: currentLevelIndex + 2,  // 0-based + 2 = 1-based pentru nivelul următor
-    stats: newStats,
-    inventory: newInv,
-    lastDailyCompleted: playMode === 'DAILY' ? getTodayDateString() : lastDailyCompleted
-});
+    };
 
-        setHasSavedSession(false);
+    fetchSavedProgress();
+}, [telegramId]);
 
-        setTimeout(() => {
-            setGameState('INTRO');
-            setIsCelebrating(false);
-        }, 4000);
-    }
-}, [gameState, currentLevelIndex, score, userStats, inventory, playMode, lastDailyCompleted, telegramId]);
 
   const handleRedeemReferral = (code: string) => {
       if (!telegramId) return { success: false, message: "Not connected" };
@@ -604,6 +597,8 @@ persistData({
     }, 1200);
   };
 
+
+
   const handleUseInGameBooster = (type: 'extraMoves' | 'bomb') => {
       if (inventory.boosters[type] <= 0) { showToast("No boosters left!"); return; }
       if (type === 'extraMoves') {
@@ -758,3 +753,7 @@ const ComboVisualsOverlay: React.FC<{ active: boolean; type: 'MEGA_BOOM' | 'SUPE
 };
 
 export default App;
+function setLevelIndex(levelIndex: any) {
+    throw new Error('Function not implemented.');
+}
+
