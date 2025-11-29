@@ -1,6 +1,5 @@
-
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Board, LevelConfig, PlayMode, Inventory, CandyType, Difficulty, CandyColor, HighScore, UserStats, Friend, LeaderboardEntry, PurchaseRecord } from './types';
+import { Board, LevelConfig, PlayMode, Inventory, CandyType, Difficulty, CandyColor, UserStats, LeaderboardEntry, PurchaseRecord } from './src/types';
 import { 
   createInitialBoard, 
   findMatches, 
@@ -9,20 +8,20 @@ import {
   isAdjacent,
   shuffleBoard,
   hasValidMoves,
-  resolveSpecialCombination,
-  SpecialEventType
-} from './utils/boardUtils';
-import { api } from './utils/api'; 
-import { generateDailyLevel, getTodayDateString } from './utils/dailyChallenge';
-import { LEVELS, SHOP_PRICES, TREASURY_WALLET } from './constants';
-import GameBoard, { ActiveEffect } from './components/GameBoard';
-import { CandyIcon } from './components/CandyIcon';
-import { CelebrationOverlay } from './components/CelebrationOverlay';
-import { ShopModal } from './components/ShopModal';
-import { WalletModal } from './components/WalletModal';
-import { FrensModal } from './components/FrensModal';
-import { RotateCcw, Trophy, Move, Play, ChevronRight, Lock, CheckCircle, Zap, Clock, Calendar, Coins, Target, Plus, ShoppingBag, Shuffle, BarChart3, Home, RefreshCw, X, Loader, HelpCircle, Info, Sparkles, Crosshair, Bomb, Disc, Wallet, Users, User, Smartphone, Cloud } from 'lucide-react';
-import { TonConnectButton, useTonWallet, useTonConnectUI } from '@tonconnect/ui-react';
+  resolveSpecialCombination
+} from './src/utils/boardUtils';
+import { generateDailyLevel, getTodayDateString } from './src/utils/dailyChallenge';
+import { LEVELS, SHOP_PRICES, TREASURY_WALLET } from './src/constants';
+import GameBoard, { ActiveEffect } from './src/components/GameBoard';
+import { CandyIcon } from './src/components/CandyIcon';
+import { CelebrationOverlay } from './src/components/CelebrationOverlay';
+import { ShopModal } from './src/components/ShopModal';
+import { WalletModal } from './src/components/WalletModal';
+import { FrensModal } from './src/components/FrensModal';
+import { RotateCcw, Trophy, Move, Play, ChevronRight, Lock, CheckCircle, Zap, Clock, Calendar, Target, Plus, ShoppingBag, Shuffle, BarChart3, Home, RefreshCw, X, Loader, Info, Wallet, Users, Smartphone, Cloud } from 'lucide-react';
+import { useTonWallet, useTonConnectUI } from '@tonconnect/ui-react';
+import { tgStorage, CloudGameState } from './src/utils/telegramStorage';
+import { getLeaderboard } from './src/utils/storage';
 
 const toNano = (amount: number): string => {
   return (amount * 1_000_000_000).toFixed(0);
@@ -37,7 +36,7 @@ const DEFAULT_STATS: UserStats = {
     totalScore: 0,
     totalTimePlayed: 0,
     referrals: 0,
-    adsViewed: 15,
+    adsViewed: 0,
     tonPurchases: 0,
     purchaseHistory: [],
     friends: []
@@ -142,7 +141,6 @@ const App: React.FC = () => {
   const [isCelebrating, setIsCelebrating] = useState(false);
   const [comboVisuals, setComboVisuals] = useState<{ type: 'MEGA_BOOM' | 'SUPER_STRIPES' | 'RAINBOW_BLAST', active: boolean } | null>(null);
 
-  // hasSavedSession is true if the DB returned a non-empty board_state
   const [hasSavedSession, setHasSavedSession] = useState(false); 
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -156,20 +154,45 @@ const App: React.FC = () => {
     setTimeout(() => setToastMessage(null), 2500);
   };
 
-  const persistData = async (data: any) => {
-      if (!telegramId) return;
+  // --- CLOUD STORAGE PERSISTENCE ---
+
+  const persistData = async (
+      overrideInventory?: Inventory, 
+      overrideStats?: UserStats, 
+      overrideLevelIndex?: number,
+      overrideDaily?: string | null,
+      saveBoard: boolean = false
+  ) => {
+      // If we are playing as a guest (local_user), we still "save" to localStorage via tgStorage fallback
       setIsSaving(true);
+      
+      const dataToSave: CloudGameState = {
+          currentLevel: overrideLevelIndex !== undefined ? overrideLevelIndex : currentLevelIndex,
+          inventory: overrideInventory || inventory,
+          stats: overrideStats || userStats,
+          lastDailyCompleted: overrideDaily !== undefined ? overrideDaily : lastDailyCompleted,
+          boardState: saveBoard ? {
+              board, score, moves, timeLeft, goalProgress
+          } : null,
+          timestamp: Date.now()
+      };
+
       try {
-          await api.saveGame(telegramId, data);
+          await tgStorage.saveGameState(dataToSave);
+      } catch (e) {
+          console.error("Save failed", e);
       } finally {
-          setTimeout(() => setIsSaving(false), 1000);
+          setTimeout(() => setIsSaving(false), 800);
       }
   };
 
   const showAd = useCallback((onComplete: () => void) => {
     const isTelegram = (window as any).Telegram?.WebApp?.initData;
     if (!isTelegram) {
-        setUserStats(prev => ({...prev, adsViewed: prev.adsViewed + 1}));
+        // Local testing mock
+        const newStats = {...userStats, adsViewed: userStats.adsViewed + 1};
+        setUserStats(newStats);
+        persistData(inventory, newStats);
         onComplete();
         return;
     }
@@ -178,109 +201,125 @@ const App: React.FC = () => {
         try {
             const AdController = Adsgram.init({ blockId: "int-17151" });
             AdController.show().then((result: any) => {
-                setUserStats(prev => ({...prev, adsViewed: prev.adsViewed + 1}));
+                const newStats = {...userStats, adsViewed: userStats.adsViewed + 1};
+                setUserStats(newStats);
+                persistData(inventory, newStats);
                 onComplete();
             }).catch((error: any) => {
                 onComplete();
             });
         } catch (e) { onComplete(); }
     } else { onComplete(); }
-  }, []);
+  }, [userStats, inventory]);
 
-  useEffect(() => {
-    if (wallet && telegramId) {
-        api.updateWallet(telegramId, wallet.account.address);
-    }
-  }, [wallet, telegramId]);
-
+  // INITIALIZATION
   useEffect(() => {
       const initApp = async () => {
           const tg = (window as any).Telegram?.WebApp;
-          if (tg && tg.initData) {
-              tg.ready(); tg.expand();
+          if (tg) {
+              tg.ready(); tg.expand(); tg.enableClosingConfirmation();
+              
               const user = tg.initDataUnsafe?.user;
-              if (user && user.id) {
-                  setTelegramName(user.first_name || "Unknown");
-                  const strId = String(user.id);
-                  setTelegramId(strId);
-                  setIsTelegramUser(true);
-                  setIsLoading(true);
+              const tid = user?.id ? String(user.id) : "local_user";
+              const tname = user?.first_name || "Guest";
+              const startParam = tg.initDataUnsafe?.start_param;
 
-                  try {
-                      const data = await api.initUser(strId, user.first_name || "Unknown", tg.initDataUnsafe.start_param);
-                      if (data && data.success) {
-                          if (data.gameState) {
-                              setInventory(prev => ({
-                                  ...prev,
-                                  coins: data.gameState.coins || 0,
-                                  boosters: {
-                                      bomb: data.gameState.bomb_boosters || 1,
-                                      extraMoves: data.gameState.extra_moves_boosters || 1,
-                                      shuffle: data.gameState.shuffle_boosters || 1
-                                  }
-                              }));
-                              setCurrentLevelIndex(Math.max(0, (data.gameState.current_level || 1) - 1));
-                              setLastDailyCompleted(data.gameState.last_daily_completed);
-                              
-                              // Check for saved board state (Persistence)
-                              if (data.gameState.board_state) {
-                                  try {
-                                      const savedBoard = JSON.parse(data.gameState.board_state);
-                                      if (savedBoard && savedBoard.length > 0) {
-                                          setBoard(savedBoard);
-                                          setScore(data.gameState.level_score || 0);
-                                          setMoves(data.gameState.moves_left || 0);
-                                          setTimeLeft(data.gameState.time_left || 0);
-                                          setHasSavedSession(true);
-                                      }
-                                  } catch(e) { console.error("Failed to parse saved board", e); }
-                              }
-                          }
-                          setUserStats(prev => ({
-                              ...prev,
-                              totalScore: parseInt(data.gameState?.total_score || '0'),
-                              totalTimePlayed: data.gameState?.total_time_played || 0,
-                              adsViewed: data.gameState?.ads_viewed || 0,
-                              tonPurchases: parseFloat(data.gameState?.ton_purchases_total || '0'),
-                              referralCode: data.user.referral_code,
-                              redeemedReferralCode: data.user.redeemed_code,
-                              friends: data.friends ? data.friends.map((f: any) => ({
-                                  id: f.id,
-                                  name: f.friend_name,
-                                  bonusEarned: f.bonus_earned,
-                                  date: new Date().toLocaleDateString()
-                              })) : [],
-                              purchaseHistory: data.purchases ? data.purchases.map((p: any) => ({
-                                  id: p.id,
-                                  item: p.item_name,
-                                  cost: parseFloat(p.cost),
-                                  date: new Date(p.transaction_date).toLocaleDateString()
-                              })) : []
-                          }));
-                          if (data.isNew) showToast(`Welcome, ${user.first_name}!`);
-                      } 
-                  } catch (e: any) {
-                      alert(`Connection Failed:\n${e.message}\nPlease refresh.`); 
-                  } finally { setIsLoading(false); }
-                  return;
+              setTelegramName(tname);
+              setTelegramId(tid);
+              setIsTelegramUser(true);
+              setIsLoading(true);
+
+              try {
+                  // LOAD FROM TELEGRAM CLOUD STORAGE
+                  const cloudData = await tgStorage.loadGameState();
+
+                  let currentStats = DEFAULT_STATS;
+                  let currentInv = DEFAULT_INVENTORY;
+                  let currentLvl = 0;
+                  let currentDaily = null;
+
+                  if (cloudData) {
+                      // Restore State
+                      currentInv = cloudData.inventory || DEFAULT_INVENTORY;
+                      currentStats = {
+                          ...DEFAULT_STATS,
+                          ...(cloudData.stats || {})
+                      };
+                      currentLvl = cloudData.currentLevel || 0;
+                      currentDaily = cloudData.lastDailyCompleted || null;
+
+                      setInventory(currentInv);
+                      setUserStats(currentStats);
+                      setCurrentLevelIndex(currentLvl);
+                      setLastDailyCompleted(currentDaily);
+
+                      // Check for interrupted game
+                      if (cloudData.boardState && cloudData.boardState.board && cloudData.boardState.board.length > 0) {
+                          setBoard(cloudData.boardState.board);
+                          setScore(cloudData.boardState.score || 0);
+                          setMoves(cloudData.boardState.moves || 0);
+                          setTimeLeft(cloudData.boardState.timeLeft || 0);
+                          setGoalProgress(cloudData.boardState.goalProgress || {});
+                          setHasSavedSession(true);
+                      }
+                  } else {
+                      // New User - Check for Referral
+                      const newCode = 'ELZR-' + Math.random().toString(36).substring(2, 8).toUpperCase();
+                      currentStats = { ...DEFAULT_STATS, referralCode: newCode };
+                      
+                      if (startParam && startParam !== newCode) {
+                         // User invited by startParam
+                         currentStats = { 
+                             ...currentStats, 
+                             redeemedReferralCode: startParam,
+                             friends: [] 
+                         };
+                         currentInv = {
+                             ...currentInv,
+                             coins: 500,
+                             boosters: { ...currentInv.boosters, bomb: 2 }
+                         };
+                      }
+
+                      setInventory(currentInv);
+                      setUserStats(currentStats);
+                  }
+                  
+                  // Initial save ensures data structure is set
+                  if (!cloudData) {
+                      tgStorage.saveGameState({
+                          currentLevel: currentLvl,
+                          inventory: currentInv,
+                          stats: currentStats,
+                          lastDailyCompleted: currentDaily,
+                          boardState: null,
+                          timestamp: Date.now()
+                      });
+                  }
+                  
+              } catch (e: any) {
+                  console.error("Init Error:", e);
+              } finally { 
+                  setIsLoading(false); 
               }
+          } else {
+              // Fallback for non-telegram browser testing
+              setTelegramName("Local Tester");
+              setTelegramId("local_tester");
+              setIsTelegramUser(true); 
+              setIsLoading(false);
           }
-          setIsTelegramUser(false); setIsLoading(false);
       };
       initApp();
   }, []);
 
   useEffect(() => {
-    if (!userStats.referralCode) setUserStats(prev => ({ ...prev, referralCode: 'R-' + Math.random().toString(36).substring(2, 8).toUpperCase() }));
-  }, [userStats.referralCode]);
-
-  useEffect(() => {
       if (showLeaderboard) {
-          api.getLeaderboard().then(data => {
-              // ... leaderboard logic can be refined later if needed
-          });
+          // Generate Client-Side Mock Leaderboard
+          const data = getLeaderboard(userStats, currentLevelIndex + 1, telegramName);
+          setLeaderboardData(data);
       }
-  }, [showLeaderboard, userStats.totalScore, currentLevelIndex, telegramName]);
+  }, [showLeaderboard, userStats, currentLevelIndex, telegramName]);
 
   useEffect(() => {
       if (!wallet) { if (isShopOpen) setIsShopOpen(false); if (isWalletOpen) setIsWalletOpen(false); }
@@ -338,18 +377,7 @@ const App: React.FC = () => {
   };
 
   const resumeGame = () => {
-      // Resume from loaded state
       setActiveLevel(LEVELS[currentLevelIndex % LEVELS.length]);
-      // Goals progress needs to be re-calculated or persisted. 
-      // For simplicity in this version, we reset goal progress or assume simple clear.
-      // Ideally, goalProgress should also be in DB. 
-      // For now, let's init goals to 0, which makes resuming slightly harder (must recollect), 
-      // but board state is kept. 
-      const levelConfig = LEVELS[currentLevelIndex % LEVELS.length];
-      const initialProgress: Record<string, number> = {};
-      levelConfig.goals.forEach(g => initialProgress[g.id] = 0);
-      setGoalProgress(initialProgress);
-      
       setPlayMode('CAMPAIGN');
       setGameState('PLAYING');
       setIsProcessing(false); setSelectedCandy(null); setComboMultiplier(1);
@@ -360,8 +388,11 @@ const App: React.FC = () => {
   const initGame = (levelConfig: LevelConfig) => {
     const startWithBomb = preGameBoosters.bomb && inventory.boosters.bomb > 0;
     const startMoves = (preGameBoosters.extraMoves && inventory.boosters.extraMoves > 0) ? levelConfig.moves + 5 : levelConfig.moves;
+    
+    let currentInv = inventory;
+
     if (startWithBomb || (startMoves !== levelConfig.moves)) {
-        const newInventory = {
+        currentInv = {
             ...inventory,
             boosters: {
                 ...inventory.boosters,
@@ -369,7 +400,7 @@ const App: React.FC = () => {
                 extraMoves: (startMoves !== levelConfig.moves) ? inventory.boosters.extraMoves - 1 : inventory.boosters.extraMoves
             }
         };
-        setInventory(newInventory);
+        setInventory(currentInv);
     }
     setBoard(createInitialBoard(startWithBomb));
     setScore(0); setMoves(startMoves); setTimeLeft(levelConfig.timeLimit);
@@ -382,8 +413,9 @@ const App: React.FC = () => {
     lastSwapRef.current = null; winProcessed.current = false; setIsShuffling(false); setComboVisuals(null);
     setShuffleAvailable(true); setPreGameBoosters({ bomb: false, extraMoves: false });
     
-    // Clear saved session on new start
     setHasSavedSession(false);
+    // Initial Save to clear 'saved session' flag in cloud but keep stats
+    persistData(currentInv, userStats, undefined, undefined, false);
   };
 
   const checkWinCondition = (currentScore: number, currentProgress: Record<string, number>) => {
@@ -403,45 +435,48 @@ const App: React.FC = () => {
           setUserStats(newStats);
           
           let newInv = inventory;
+          let newDaily = lastDailyCompleted;
+
           if (playMode === 'DAILY') {
                const today = getTodayDateString();
                if (lastDailyCompleted !== today) {
                    newInv = { ...inventory, coins: inventory.coins + 100, boosters: { ...inventory.boosters, bomb: inventory.boosters.bomb + 1 } };
                    setInventory(newInv);
+                   newDaily = today;
                    setLastDailyCompleted(today);
                    showToast("Daily Reward: +100 Coins & 1 Bomb!");
                }
           }
           
-          const saveData = {
-                board: null, score: 0, moves: 0, timeLeft: 0, 
-                levelIndex: nextLevelIndex,
-                goalProgress: {}, timestamp: Date.now(), inventory: newInv, stats: newStats,
-                lastDailyCompleted: playMode === 'DAILY' ? getTodayDateString() : lastDailyCompleted
-          };
-          // Persist the win and clear the board
-          persistData(saveData);
+          // Persist Win Data to Cloud
+          persistData(newInv, newStats, nextLevelIndex, newDaily, false);
           setHasSavedSession(false);
       }
   }, [gameState, playMode, score, inventory, currentLevelIndex, lastDailyCompleted, telegramId]);
 
+  // Client-side referral simulation
   const handleRedeemReferral = (code: string) => {
-      if (!telegramId) return { success: false, message: "Not connected" };
-      api.redeemReferral(telegramId, code).then(res => {
-          if (res.success && res.rewards) {
-              const newInv = {
-                  ...inventory,
-                  coins: inventory.coins + res.rewards.coins,
-                  boosters: { ...inventory.boosters, bomb: inventory.boosters.bomb + res.rewards.bomb }
-              };
-              setInventory(newInv);
-              setUserStats(prev => ({ ...prev, redeemedReferralCode: code }));
-              showToast(res.message);
-          } else {
-              showToast(res.message || "Failed to redeem");
-          }
-      });
-      return { success: true, message: "Checking code..." };
+      if (userStats.redeemedReferralCode) return { success: false, message: "Code already redeemed" };
+      if (code === userStats.referralCode) return { success: false, message: "Cannot use your own code" };
+
+      // Since we don't have a backend to check if the code exists, we accept any valid-looking code (simulation)
+      if (code.length < 5) return { success: false, message: "Invalid Code" };
+
+      const rewards = { coins: 500, bomb: 1 };
+      const newInv = {
+          ...inventory,
+          coins: inventory.coins + rewards.coins,
+          boosters: { ...inventory.boosters, bomb: inventory.boosters.bomb + rewards.bomb }
+      };
+      
+      const newStats = { ...userStats, redeemedReferralCode: code };
+      setInventory(newInv);
+      setUserStats(newStats);
+      
+      // Save
+      persistData(newInv, newStats);
+
+      return { success: true, message: `Redeemed! +${rewards.coins} Coins`, reward: rewards };
   };
 
   useEffect(() => {
@@ -486,12 +521,8 @@ const App: React.FC = () => {
                 setIsProcessing(true); showToast("No Moves! Shuffling...");
                 setTimeout(() => { setBoard(shuffleBoard(board)); setIsProcessing(false); }, 1500);
             } else {
-                // AUTO-SAVE on Every Stable Move (debounced by API call nature)
-                // We only save if we are NOT processing matches and it's a stable state
-                // This ensures if user closes app, they lose at most 1 move
-                // However, to avoid spamming API, we could just do it here
-                const saveData = { board, score, moves, timeLeft, levelIndex: currentLevelIndex, goalProgress, timestamp: Date.now(), inventory, stats: userStats, lastDailyCompleted };
-                persistData(saveData);
+                // Auto-save board state for resumption on every stable move
+                persistData(inventory, userStats, currentLevelIndex, lastDailyCompleted, true);
             }
         }
       }
@@ -537,8 +568,7 @@ const App: React.FC = () => {
         setBombEffectIndex(index); setIsProcessing(true); 
         const newInv = { ...inventory, boosters: { ...inventory.boosters, bomb: Math.max(0, inventory.boosters.bomb - 1) } };
         setInventory(newInv);
-        const saveData = { board, score, moves, timeLeft, levelIndex: currentLevelIndex, goalProgress, timestamp: Date.now(), inventory: newInv, stats: userStats, lastDailyCompleted };
-        persistData(saveData);
+        persistData(newInv, userStats, undefined, undefined, true);
         setTimeout(() => {
             const newBoard = [...board]; newBoard[index] = { ...targetCandy, type: CandyType.Bomb, isNew: true };
             setBoard(newBoard); setIsShaking(true); setTimeout(() => setIsShaking(false), 300);
@@ -556,13 +586,13 @@ const App: React.FC = () => {
         await tonConnectUI.sendTransaction(transaction);
         const newInventory = { ...inventory, boosters: { ...inventory.boosters, [item]: inventory.boosters[item] + 1 } };
         setInventory(newInventory);
+        
         const itemName = item === 'bomb' ? 'Bomb' : item === 'extraMoves' ? '+5 Moves' : 'Shuffle';
-        if (telegramId) await api.recordPurchase(telegramId, itemName, cost);
-        setUserStats(prev => {
-            const newRecord: PurchaseRecord = { id: Date.now().toString(), item: itemName, cost: cost, date: new Date().toLocaleDateString() };
-            const newStats = { ...prev, tonPurchases: prev.tonPurchases + cost, purchaseHistory: [newRecord, ...prev.purchaseHistory] };
-            return newStats;
-        });
+        const newRecord: PurchaseRecord = { id: Date.now().toString(), item: itemName, cost: cost, date: new Date().toLocaleDateString() };
+        const newStats = { ...userStats, tonPurchases: userStats.tonPurchases + cost, purchaseHistory: [newRecord, ...userStats.purchaseHistory] };
+        setUserStats(newStats);
+        
+        persistData(newInventory, newStats);
         showToast("Purchase Successful!");
     } catch (e) { showToast("Transaction Failed"); }
   };
@@ -578,6 +608,7 @@ const App: React.FC = () => {
         else {
              const newInv = { ...inventory, boosters: { ...inventory.boosters, shuffle: Math.max(0, inventory.boosters.shuffle - 1) } };
              setInventory(newInv);
+             persistData(newInv, userStats, undefined, undefined, true);
              showToast("Board Shuffled!");
         }
     }, 1200);
@@ -589,6 +620,7 @@ const App: React.FC = () => {
           setMoves(m => m + 5);
           const newInv = { ...inventory, boosters: { ...inventory.boosters, extraMoves: inventory.boosters.extraMoves - 1 } };
           setInventory(newInv);
+          persistData(newInv, userStats, undefined, undefined, true);
           setTriggerMovesAnim(true); setTimeout(() => setTriggerMovesAnim(false), 800); showToast("+5 Moves Added!");
           return;
       }
@@ -598,7 +630,7 @@ const App: React.FC = () => {
   const handleOpenShop = () => { if (!wallet) { if (tonConnectUI) tonConnectUI.openModal(); showToast("Connect TON Wallet!"); } else { setIsShopOpen(true); } };
   const handleOpenWallet = () => { if (!wallet) { if (tonConnectUI) tonConnectUI.openModal(); showToast("Connect TON Wallet!"); } else { setIsWalletOpen(true); } };
 
-  if (isLoading) return (<div className="w-full h-full flex flex-col items-center justify-center bg-game-bg text-white"><Loader size={48} className="animate-spin text-game-accent mb-4" /><div className="text-xl font-bold animate-pulse">Connecting...</div></div>);
+  if (isLoading) return (<div className="w-full h-full flex flex-col items-center justify-center bg-game-bg text-white"><Loader size={48} className="animate-spin text-game-accent mb-4" /><div className="text-xl font-bold animate-pulse">Loading Game Data...</div></div>);
   if (isTelegramUser === false) return (<div className="w-full h-full flex flex-col items-center justify-center bg-game-bg text-white p-8 text-center"><Smartphone size={64} className="mb-4 text-white/50" /><h1 className="text-2xl font-black mb-2">Telegram Only</h1><p className="text-white/60 mb-6">Open in Telegram to play.</p><a href="https://t.me/" className="bg-blue-500 hover:bg-blue-600 px-6 py-3 rounded-xl font-bold transition-colors">Open Telegram</a></div>);
 
   return (
@@ -621,11 +653,8 @@ const App: React.FC = () => {
                  <button onClick={openDailyPreview} className="w-full p-3 rounded-2xl bg-gradient-to-r from-yellow-500 to-orange-500 font-bold shadow-lg shadow-orange-500/20 flex items-center justify-between hover:brightness-110 active:scale-95 transition-all shrink-0"><div className="flex items-center gap-3"><div className="p-2 bg-white/20 rounded-lg"><Calendar className="text-white" size={18} /></div><div className="text-left"><div className="text-[10px] uppercase opacity-80">Daily Challenge</div><div className="text-sm font-black">Play Today's Level</div></div></div>{lastDailyCompleted === getTodayDateString() ? <CheckCircle className="text-white/80" /> : <ChevronRight size={18} />}</button>
                  <div className="bg-game-panel rounded-2xl p-2 border border-white/5 space-y-1.5">
                      {LEVELS.map((lvl, idx) => {
-                         // FIXED LOGIC: Strict progression check
                          const isLocked = idx > currentLevelIndex;
-                         // Check if this is the current active level and we have a session
                          const canResume = idx === currentLevelIndex && hasSavedSession;
-                         
                          return (
                             <button 
                                 key={lvl.levelNumber} 
@@ -710,7 +739,7 @@ const App: React.FC = () => {
           <div className="bg-game-bg border border-white/20 w-full max-w-xs rounded-[2rem] shadow-2xl relative flex flex-col max-h-[80vh] overflow-hidden">
             <div className="p-6 pb-4 relative bg-gradient-to-b from-indigo-900/50 to-transparent"><button onClick={() => setShowLeaderboard(false)} className="absolute top-4 right-4 text-white/50 hover:text-white"><X size={24} /></button><div className="text-center"><div className="inline-flex items-center justify-center p-3 bg-indigo-600/30 rounded-full mb-2 ring-1 ring-indigo-400/50 shadow-lg"><BarChart3 size={24} className="text-indigo-200" /></div><h2 className="text-2xl font-black text-white tracking-wide">Global Rank</h2><p className="text-xs text-white/50 mt-1">Top Players Worldwide</p></div></div>
             <div className="flex-1 overflow-y-auto custom-scrollbar px-4 pb-24 space-y-2">{!leaderboardData ? (<div className="flex justify-center py-8"><Loader className="animate-spin text-white/30" /></div>) : (leaderboardData.top10.map((entry, index) => (<div key={index} className={`flex items-center justify-between p-3 rounded-xl border transition-all ${entry.isUser ? 'bg-indigo-500/20 border-indigo-400/50' : 'bg-white/5 border-white/5'}`}><div className="flex items-center gap-3"><div className={`w-8 h-8 rounded-full flex items-center justify-center font-black text-sm relative shadow-md ${index === 0 ? 'bg-gradient-to-br from-yellow-300 to-yellow-600 text-white border border-yellow-200' : index === 1 ? 'bg-gradient-to-br from-gray-300 to-gray-500 text-white border border-gray-200' : index === 2 ? 'bg-gradient-to-br from-orange-400 to-orange-700 text-white border border-orange-300' : 'bg-white/10 text-white/50'}`}>{index + 1}</div><div className="text-left"><div className={`font-bold text-sm truncate max-w-[120px] ${entry.isUser ? 'text-indigo-200' : 'text-white'}`}>{entry.name} {entry.isUser && '(You)'}</div><div className="text-[10px] text-white/50 font-mono">Level {entry.level}</div></div></div><div className="font-black text-sm text-right tabular-nums text-white/90">{entry.score.toLocaleString()}</div></div>)))}</div>
-            <div className="absolute bottom-0 left-0 right-0 bg-[#1a103c] p-4 border-t border-white/20 shadow-[0_-10px_20px_rgba(0,0,0,0.5)] flex items-center justify-center">{leaderboardData && (<div className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 rounded-xl p-3 flex items-center justify-between shadow-lg border border-white/20 relative overflow-hidden"><div className="absolute inset-0 bg-white/10 animate-pulse pointer-events-none" /><div className="flex items-center gap-3 z-10"><div className="flex flex-col items-center justify-center w-10 h-10 bg-black/30 rounded-lg border border-white/10"><span className="text-[8px] text-white/50 uppercase font-bold">Rank</span><span className="text-lg font-black text-white leading-none">{leaderboardData.userEntry.rank}</span></div><div><div className="font-bold text-white text-sm flex items-center gap-1"><User size={14} /> {leaderboardData.userEntry.name}</div><div className="text-[10px] text-indigo-200">Level {leaderboardData.userEntry.level}</div></div></div><div className="z-10 text-right"><div className="text-[10px] text-white/50 uppercase font-bold">Total Score</div><div className="font-black text-lg text-white tabular-nums">{leaderboardData.userEntry.score.toLocaleString()}</div></div></div>)}</div>
+            <div className="absolute bottom-0 left-0 right-0 bg-[#1a103c] p-4 border-t border-white/20 shadow-[0_-10px_20px_rgba(0,0,0,0.5)] flex items-center justify-center">{leaderboardData && (<div className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 rounded-xl p-3 flex items-center justify-between shadow-lg border border-white/20 relative overflow-hidden"><div className="absolute inset-0 bg-white/10 animate-pulse pointer-events-none" /><div className="flex items-center gap-3 z-10"><div className="flex flex-col items-center justify-center w-10 h-10 bg-black/30 rounded-lg border border-white/10"><span className="text-[8px] text-white/50 uppercase font-bold">Rank</span><span className="text-lg font-black text-white leading-none">{leaderboardData.userEntry.rank}</span></div><div><div className="font-bold text-white text-sm flex items-center gap-1"><Users size={14} /> {leaderboardData.userEntry.name}</div><div className="text-[10px] text-indigo-200">Level {leaderboardData.userEntry.level}</div></div></div><div className="z-10 text-right"><div className="text-[10px] text-white/50 uppercase font-bold">Total Score</div><div className="font-black text-lg text-white tabular-nums">{leaderboardData.userEntry.score.toLocaleString()}</div></div></div>)}</div>
           </div>
         </div>
       )}
