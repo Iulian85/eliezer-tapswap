@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Board, LevelConfig, PlayMode, Inventory, CandyType, Difficulty, CandyColor, UserStats, LeaderboardEntry, PurchaseRecord, Friend } from './types';
+import { Board, LevelConfig, PlayMode, Inventory, CandyType, Difficulty, CandyColor, UserStats, LeaderboardEntry, PurchaseRecord } from './types';
 import { 
   createInitialBoard, 
   findMatches, 
@@ -19,9 +19,10 @@ import { CelebrationOverlay } from './components/CelebrationOverlay';
 import { ShopModal } from './components/ShopModal';
 import { WalletModal } from './components/WalletModal';
 import { FrensModal } from './components/FrensModal';
-import { RotateCcw, Trophy, Move, Play, ChevronRight, Lock, CheckCircle, Zap, Clock, Calendar, Target, Plus, ShoppingBag, Shuffle, BarChart3, Home, RefreshCw, X, Loader, Info, Wallet, Users, Smartphone } from 'lucide-react';
+import { RotateCcw, Trophy, Move, Play, ChevronRight, Lock, CheckCircle, Zap, Clock, Calendar, Target, Plus, ShoppingBag, Shuffle, BarChart3, Home, RefreshCw, X, Loader, Info, Wallet, Users, Smartphone, Cloud } from 'lucide-react';
 import { useTonWallet, useTonConnectUI } from '@tonconnect/ui-react';
-import { tgStorage } from './utils/telegramStorage';
+import { tgStorage, CloudGameState } from './utils/telegramStorage';
+import { getLeaderboard } from './utils/storage';
 
 const toNano = (amount: number): string => {
   return (amount * 1_000_000_000).toFixed(0);
@@ -141,7 +142,6 @@ const App: React.FC = () => {
   const [isCelebrating, setIsCelebrating] = useState(false);
   const [comboVisuals, setComboVisuals] = useState<{ type: 'MEGA_BOOM' | 'SUPER_STRIPES' | 'RAINBOW_BLAST', active: boolean } | null>(null);
 
-  // hasSavedSession is true if the DB returned a non-empty board_state
   const [hasSavedSession, setHasSavedSession] = useState(false); 
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -155,7 +155,7 @@ const App: React.FC = () => {
     setTimeout(() => setToastMessage(null), 2500);
   };
 
-  // --- PERSISTENCE LOGIC (CloudStorage) ---
+  // --- CLOUD STORAGE PERSISTENCE ---
 
   const persistData = async (
       overrideInventory?: Inventory, 
@@ -167,7 +167,7 @@ const App: React.FC = () => {
       if (!telegramId) return;
       setIsSaving(true);
       
-      const dataToSave = {
+      const dataToSave: CloudGameState = {
           currentLevel: overrideLevelIndex !== undefined ? overrideLevelIndex : currentLevelIndex,
           inventory: overrideInventory || inventory,
           stats: overrideStats || userStats,
@@ -180,7 +180,6 @@ const App: React.FC = () => {
 
       try {
           await tgStorage.saveGameState(dataToSave);
-          // Save friends list separately if it changed (optimization: usually handled inside handleRedeemReferral)
       } catch (e) {
           console.error("Save failed", e);
       } finally {
@@ -214,13 +213,6 @@ const App: React.FC = () => {
     } else { onComplete(); }
   }, [userStats, inventory]);
 
-  useEffect(() => {
-    if (wallet && telegramId) {
-        // Just local state update since we don't have backend to save wallet mapping
-        // We save it inside persistData implicitly if needed, or just let TonConnect handle it
-    }
-  }, [wallet, telegramId]);
-
   // INITIALIZATION
   useEffect(() => {
       const initApp = async () => {
@@ -229,9 +221,9 @@ const App: React.FC = () => {
               tg.ready(); tg.expand(); tg.enableClosingConfirmation();
               
               const user = tg.initDataUnsafe?.user;
-              // Fallback for browser testing
               const tid = user?.id ? String(user.id) : "local_user";
               const tname = user?.first_name || "Guest";
+              const startParam = tg.initDataUnsafe?.start_param;
 
               setTelegramName(tname);
               setTelegramId(tid);
@@ -241,18 +233,26 @@ const App: React.FC = () => {
               try {
                   // LOAD FROM TELEGRAM CLOUD STORAGE
                   const cloudData = await tgStorage.loadGameState();
-                  const cloudFriends = await tgStorage.loadFriends();
+
+                  let currentStats = DEFAULT_STATS;
+                  let currentInv = DEFAULT_INVENTORY;
+                  let currentLvl = 0;
+                  let currentDaily = null;
 
                   if (cloudData) {
                       // Restore State
-                      setInventory(cloudData.inventory || DEFAULT_INVENTORY);
-                      setUserStats({
+                      currentInv = cloudData.inventory || DEFAULT_INVENTORY;
+                      currentStats = {
                           ...DEFAULT_STATS,
-                          ...(cloudData.stats || {}),
-                          friends: cloudFriends || []
-                      });
-                      setCurrentLevelIndex(cloudData.currentLevel || 0);
-                      setLastDailyCompleted(cloudData.lastDailyCompleted || null);
+                          ...(cloudData.stats || {})
+                      };
+                      currentLvl = cloudData.currentLevel || 0;
+                      currentDaily = cloudData.lastDailyCompleted || null;
+
+                      setInventory(currentInv);
+                      setUserStats(currentStats);
+                      setCurrentLevelIndex(currentLvl);
+                      setLastDailyCompleted(currentDaily);
 
                       // Check for interrupted game
                       if (cloudData.boardState && cloudData.boardState.board && cloudData.boardState.board.length > 0) {
@@ -263,22 +263,39 @@ const App: React.FC = () => {
                           setGoalProgress(cloudData.boardState.goalProgress || {});
                           setHasSavedSession(true);
                       }
-                      
-                      // Ensure referral code exists
-                      if (!cloudData.stats?.referralCode) {
-                          const newCode = 'ELZR-' + Math.random().toString(36).substring(2, 8).toUpperCase();
-                          setUserStats(prev => ({ ...prev, referralCode: newCode }));
-                      }
                   } else {
-                      // New User
+                      // New User - Check for Referral
                       const newCode = 'ELZR-' + Math.random().toString(36).substring(2, 8).toUpperCase();
-                      const initStats = { ...DEFAULT_STATS, referralCode: newCode };
-                      setUserStats(initStats);
-                      // Save initial state
+                      currentStats = { ...DEFAULT_STATS, referralCode: newCode };
+                      
+                      if (startParam && startParam !== newCode) {
+                         // User invited by startParam
+                         currentStats = { 
+                             ...currentStats, 
+                             redeemedReferralCode: startParam,
+                             friends: [] 
+                         };
+                         currentInv = {
+                             ...currentInv,
+                             coins: 500,
+                             boosters: { ...currentInv.boosters, bomb: 2 }
+                         };
+                         // Note: We can't easily notify the referrer without a backend, 
+                         // but we can give the new user the bonus immediately.
+                      }
+
+                      setInventory(currentInv);
+                      setUserStats(currentStats);
+                  }
+                  
+                  // Initial save ensures data structure is set
+                  if (!cloudData) {
                       tgStorage.saveGameState({
-                          currentLevel: 0,
-                          inventory: DEFAULT_INVENTORY,
-                          stats: initStats,
+                          currentLevel: currentLvl,
+                          inventory: currentInv,
+                          stats: currentStats,
+                          lastDailyCompleted: currentDaily,
+                          boardState: null,
                           timestamp: Date.now()
                       });
                   }
@@ -294,6 +311,14 @@ const App: React.FC = () => {
       };
       initApp();
   }, []);
+
+  useEffect(() => {
+      if (showLeaderboard) {
+          // Generate Client-Side Mock Leaderboard
+          const data = getLeaderboard(userStats, currentLevelIndex + 1, telegramName);
+          setLeaderboardData(data);
+      }
+  }, [showLeaderboard, userStats, currentLevelIndex, telegramName]);
 
   useEffect(() => {
       if (!wallet) { if (isShopOpen) setIsShopOpen(false); if (isWalletOpen) setIsWalletOpen(false); }
@@ -496,9 +521,7 @@ const App: React.FC = () => {
                 setIsProcessing(true); showToast("No Moves! Shuffling...");
                 setTimeout(() => { setBoard(shuffleBoard(board)); setIsProcessing(false); }, 1500);
             } else {
-                // Auto-save board state for resumption
-                // Only save if move count changed significantly or time passed to avoid spam
-                // For now, save on every stable state
+                // Auto-save board state for resumption on every stable move
                 persistData(inventory, userStats, currentLevelIndex, lastDailyCompleted, true);
             }
         }
@@ -614,7 +637,7 @@ const App: React.FC = () => {
   return (
     <div className="relative w-full h-full max-w-md mx-auto flex flex-col bg-game-bg overflow-hidden text-white font-sans select-none shadow-2xl">
       <div className={`absolute top-24 left-1/2 transform -translate-x-1/2 z-[100] transition-all duration-300 pointer-events-none ${toastMessage ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'}`}><div className="bg-black/80 text-white px-6 py-2 rounded-full backdrop-blur-md border border-white/10 shadow-xl font-bold flex items-center gap-2 text-sm whitespace-nowrap"><Zap size={16} className="text-yellow-400 fill-yellow-400" />{toastMessage}</div></div>
-      {isSaving && <div className="absolute top-4 right-4 z-[90] flex items-center gap-2 bg-black/60 px-3 py-1 rounded-full text-xs font-bold text-white/80 animate-pulse border border-white/10"><Users size={12} /> Saving...</div>}
+      {isSaving && <div className="absolute top-4 right-4 z-[90] flex items-center gap-2 bg-black/60 px-3 py-1 rounded-full text-xs font-bold text-white/80 animate-pulse border border-white/10"><Cloud size={12} /> Saving...</div>}
       
       {isShuffling && (<div className="absolute inset-0 z-[80] flex items-center justify-center bg-black/60 backdrop-blur-md animate-in fade-in duration-200"><div className="flex flex-col items-center gap-4"><div className="relative"><Shuffle size={64} className="text-white animate-spin duration-1000" /><div className="absolute top-0 left-0 w-full h-full animate-ping opacity-40 bg-white rounded-full" /></div><div className="text-2xl font-bold text-white tracking-widest uppercase animate-pulse">Shuffling...</div></div></div>)}
       <ComboVisualsOverlay active={comboVisuals?.active || false} type={comboVisuals?.type || null} />
