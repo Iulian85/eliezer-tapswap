@@ -1,9 +1,8 @@
 
-
 import { Inventory, UserStats, Board } from '../types';
 
 // Keys for storage
-const KEY_STATE = 'ELZR_STATE_V2'; // Incremented version to ensure fresh start if structure changes
+const KEY_STATE = 'ELZR_STATE_V3'; // Incremented version
 
 export interface CloudGameState {
     currentLevel: number;
@@ -24,10 +23,15 @@ export const tgStorage = {
     // Generic Set
     setItem: (key: string, value: string): Promise<boolean> => {
         return new Promise((resolve) => {
-            if (window.Telegram?.WebApp?.CloudStorage) {
-                window.Telegram.WebApp.CloudStorage.setItem(key, value, (err: any, saved: boolean) => {
+            // Check if Telegram WebApp is available
+            const tg = window.Telegram?.WebApp;
+            
+            if (tg && tg.CloudStorage && typeof tg.CloudStorage.setItem === 'function') {
+                tg.CloudStorage.setItem(key, value, (err: any, saved: boolean) => {
                     if (err) {
                         console.error('CloudStorage Save Error:', err);
+                        // Fallback to local storage if cloud fails
+                        try { localStorage.setItem(key, value); } catch(e){}
                         resolve(false);
                     } else {
                         resolve(saved);
@@ -39,6 +43,7 @@ export const tgStorage = {
                     localStorage.setItem(key, value);
                     resolve(true);
                 } catch (e) {
+                    console.error('LocalStorage Save Error:', e);
                     resolve(false);
                 }
             }
@@ -48,11 +53,14 @@ export const tgStorage = {
     // Generic Get
     getItem: (key: string): Promise<string | null> => {
         return new Promise((resolve) => {
-            if (window.Telegram?.WebApp?.CloudStorage) {
-                window.Telegram.WebApp.CloudStorage.getItem(key, (err: any, value: string | null) => {
+            const tg = window.Telegram?.WebApp;
+
+            if (tg && tg.CloudStorage && typeof tg.CloudStorage.getItem === 'function') {
+                tg.CloudStorage.getItem(key, (err: any, value: string | null) => {
                     if (err) {
                         console.error('CloudStorage Load Error:', err);
-                        resolve(null);
+                        // Fallback to local storage
+                        resolve(localStorage.getItem(key));
                     } else {
                         resolve(value);
                     }
@@ -66,9 +74,6 @@ export const tgStorage = {
 
     // Save Complete Game State
     saveGameState: async (data: CloudGameState) => {
-        // Optimization: Remove 'friends' from stats if too large, but for now we keep it
-        // CloudStorage has a limit of 4096 bytes per key in some contexts, but usually higher for keys.
-        // If data gets too big, we might need to split keys.
         const payload = JSON.stringify(data);
         return await tgStorage.setItem(KEY_STATE, payload);
     },

@@ -164,7 +164,7 @@ const App: React.FC = () => {
       overrideDaily?: string | null,
       saveBoard: boolean = false
   ) => {
-      if (!telegramId) return;
+      // If we are playing as a guest (local_user), we still "save" to localStorage via tgStorage fallback
       setIsSaving(true);
       
       const dataToSave: CloudGameState = {
@@ -280,8 +280,6 @@ const App: React.FC = () => {
                              coins: 500,
                              boosters: { ...currentInv.boosters, bomb: 2 }
                          };
-                         // Note: We can't easily notify the referrer without a backend, 
-                         // but we can give the new user the bonus immediately.
                       }
 
                       setInventory(currentInv);
@@ -306,7 +304,11 @@ const App: React.FC = () => {
                   setIsLoading(false); 
               }
           } else {
-              setIsTelegramUser(false); setIsLoading(false);
+              // Fallback for non-telegram browser testing
+              setTelegramName("Local Tester");
+              setTelegramId("local_tester");
+              setIsTelegramUser(true); 
+              setIsLoading(false);
           }
       };
       initApp();
@@ -376,7 +378,6 @@ const App: React.FC = () => {
   };
 
   const resumeGame = () => {
-      // Resume from loaded state (already in board state)
       setActiveLevel(LEVELS[currentLevelIndex % LEVELS.length]);
       setPlayMode('CAMPAIGN');
       setGameState('PLAYING');
@@ -593,7 +594,6 @@ const App: React.FC = () => {
         setUserStats(newStats);
         
         persistData(newInventory, newStats);
-        
         showToast("Purchase Successful!");
     } catch (e) { showToast("Transaction Failed"); }
   };
@@ -631,7 +631,7 @@ const App: React.FC = () => {
   const handleOpenShop = () => { if (!wallet) { if (tonConnectUI) tonConnectUI.openModal(); showToast("Connect TON Wallet!"); } else { setIsShopOpen(true); } };
   const handleOpenWallet = () => { if (!wallet) { if (tonConnectUI) tonConnectUI.openModal(); showToast("Connect TON Wallet!"); } else { setIsWalletOpen(true); } };
 
-  if (isLoading) return (<div className="w-full h-full flex flex-col items-center justify-center bg-game-bg text-white"><Loader size={48} className="animate-spin text-game-accent mb-4" /><div className="text-xl font-bold animate-pulse">Connecting to Cloud...</div></div>);
+  if (isLoading) return (<div className="w-full h-full flex flex-col items-center justify-center bg-game-bg text-white"><Loader size={48} className="animate-spin text-game-accent mb-4" /><div className="text-xl font-bold animate-pulse">Loading Game Data...</div></div>);
   if (isTelegramUser === false) return (<div className="w-full h-full flex flex-col items-center justify-center bg-game-bg text-white p-8 text-center"><Smartphone size={64} className="mb-4 text-white/50" /><h1 className="text-2xl font-black mb-2">Telegram Only</h1><p className="text-white/60 mb-6">Open in Telegram to play.</p><a href="https://t.me/" className="bg-blue-500 hover:bg-blue-600 px-6 py-3 rounded-xl font-bold transition-colors">Open Telegram</a></div>);
 
   return (
