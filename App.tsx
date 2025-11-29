@@ -9,19 +9,19 @@ import {
   shuffleBoard,
   hasValidMoves,
   resolveSpecialCombination
-} from './src/utils/boardUtils';
-import { generateDailyLevel, getTodayDateString } from './src/utils/dailyChallenge';
-import { LEVELS, SHOP_PRICES, TREASURY_WALLET } from './src/constants';
-import GameBoard, { ActiveEffect } from './src/components/GameBoard';
-import { CandyIcon } from './src/components/CandyIcon';
-import { CelebrationOverlay } from './src/components/CelebrationOverlay';
-import { ShopModal } from './src/components/ShopModal';
-import { WalletModal } from './src/components/WalletModal';
-import { FrensModal } from './src/components/FrensModal';
+} from './utils/boardUtils';
+import { generateDailyLevel, getTodayDateString } from './utils/dailyChallenge';
+import { LEVELS, SHOP_PRICES, TREASURY_WALLET } from './constants';
+import GameBoard, { ActiveEffect } from './components/GameBoard';
+import { CandyIcon } from './components/CandyIcon';
+import { CelebrationOverlay } from './components/CelebrationOverlay';
+import { ShopModal } from './components/ShopModal';
+import { WalletModal } from './components/WalletModal';
+import { FrensModal } from './components/FrensModal';
 import { RotateCcw, Trophy, Move, Play, ChevronRight, Lock, CheckCircle, Zap, Clock, Calendar, Target, Plus, ShoppingBag, Shuffle, BarChart3, Home, RefreshCw, X, Loader, Info, Wallet, Users, Smartphone, Cloud } from 'lucide-react';
 import { useTonWallet, useTonConnectUI } from '@tonconnect/ui-react';
 import { tgStorage, CloudGameState } from './src/utils/telegramStorage';
-import { getLeaderboard } from './src/utils/storage';
+import { getLeaderboard } from './utils/storage';
 
 const toNano = (amount: number): string => {
   return (amount * 1_000_000_000).toFixed(0);
