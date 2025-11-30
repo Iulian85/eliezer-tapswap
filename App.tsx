@@ -155,7 +155,7 @@ const App: React.FC = () => {
 
   // ENVIRONMENT VARIABLE FOR BOT TOKEN
   const BOT_TOKEN = import.meta.env.VITE_BOT_TOKEN || ""; 
-  const WEB_APP_URL = "https://t.me/EliezerRushBot/play"; 
+  const WEB_APP_URL = "https://t.me/Obadiah_Bot/eliezer"; 
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
