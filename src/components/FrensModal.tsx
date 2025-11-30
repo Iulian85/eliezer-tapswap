@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { X, Copy, Users, Gift, CheckCircle, AlertCircle, Send, UserPlus } from 'lucide-react';
 import { UserStats, Friend } from '../types';
@@ -7,7 +6,7 @@ interface FrensModalProps {
   isOpen: boolean;
   onClose: () => void;
   stats: UserStats;
-  onRedeemCode: (code: string) => { success: boolean; message: string; reward?: { coins: number; bomb: number } };
+  onRedeemCode: (code: string) => Promise<{ success: boolean; message: string; reward?: { coins: number; bomb: number } }> | { success: boolean; message: string; reward?: { coins: number; bomb: number } };
   onManualAddFriend: (name: string) => void;
 }
 
@@ -57,9 +56,9 @@ export const FrensModal: React.FC<FrensModalProps> = ({ isOpen, onClose, stats, 
     }
   };
 
-  const handleSubmitRedeem = () => {
+  const handleSubmitRedeem = async () => {
     if (!inputCode.trim()) return;
-    const result = onRedeemCode(inputCode.trim());
+    const result = await onRedeemCode(inputCode.trim());
     setRedeemStatus({
         type: result.success ? 'success' : 'error',
         message: result.message

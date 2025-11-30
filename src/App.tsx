@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Board, LevelConfig, PlayMode, Inventory, CandyType, Difficulty, CandyColor, UserStats, LeaderboardEntry, PurchaseRecord, Friend } from './src/types';
 import { 
@@ -19,10 +18,12 @@ import { CelebrationOverlay } from './components/CelebrationOverlay';
 import { ShopModal } from './components/ShopModal';
 import { WalletModal } from './components/WalletModal';
 import { FrensModal } from './components/FrensModal';
+import { AdminPanel } from './components/AdminPanel';
 import { RotateCcw, Trophy, Move, Play, ChevronRight, Lock, CheckCircle, Zap, Clock, Calendar, Target, Plus, ShoppingBag, Shuffle, BarChart3, Home, RefreshCw, X, Loader, Info, Wallet, Users, Smartphone, Cloud, Gift, Check } from 'lucide-react';
 import { useTonWallet, useTonConnectUI } from '@tonconnect/ui-react';
 import { tgStorage, CloudGameState } from './src/utils/telegramStorage';
 import { getLeaderboard } from './utils/storage';
+import { generateSecureReferralCode, decodeReferralCode, safeSendReferralNotification } from './src/utils/referralUtils';
 
 const toNano = (amount: number): string => {
   return (amount * 1_000_000_000).toFixed(0);
@@ -151,6 +152,10 @@ const App: React.FC = () => {
   const lastSwapRef = useRef<number[] | null>(null);
   const winProcessed = useRef(false);
 
+  // ENVIRONMENT VARIABLE FOR BOT TOKEN
+  const BOT_TOKEN = import.meta.env.VITE_BOT_TOKEN || ""; 
+  const WEB_APP_URL = "https://t.me/EliezerRushBot/play"; 
+
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 2500);
@@ -250,12 +255,41 @@ const App: React.FC = () => {
                       currentLvl = cloudData.currentLevel || 0;
                       currentDaily = cloudData.lastDailyCompleted || null;
 
+                      // Migration: Ensure Secure Referral Code
+                      if (!currentStats.referralCode || !currentStats.referralCode.startsWith('ELZR-')) {
+                          currentStats.referralCode = generateSecureReferralCode(tid);
+                      }
+                      // Ensure Friends Array
+                      if (!currentStats.friends) currentStats.friends = [];
+
+                      // --- AUTO-CLAIM LOGIC (CONFIRMATION) ---
+                      if (startParam && startParam.startsWith('confirm_')) {
+                          const parts = startParam.split('_');
+                          if (parts.length >= 3) {
+                              const friendId = parts[1];
+                              const friendName = parts[2];
+                              
+                              const alreadyAdded = currentStats.friends?.some(f => f.id === friendId);
+                              if (!alreadyAdded && friendId !== tid) {
+                                  const newFriend: Friend = {
+                                      id: friendId,
+                                      name: friendName,
+                                      bonusEarned: 500,
+                                      date: new Date().toLocaleDateString()
+                                  };
+                                  currentStats.friends = [...(currentStats.friends || []), newFriend];
+                                  currentStats.referrals = (currentStats.referrals || 0) + 1;
+                                  currentInv.coins += 500;
+                                  showToast(`New Fren: ${friendName}! +500 Coins`);
+                              }
+                          }
+                      }
+
                       setInventory(currentInv);
                       setUserStats(currentStats);
                       setCurrentLevelIndex(currentLvl);
                       setLastDailyCompleted(currentDaily);
 
-                      // Check for interrupted game
                       if (cloudData.boardState && cloudData.boardState.board && cloudData.boardState.board.length > 0) {
                           setBoard(cloudData.boardState.board);
                           setScore(cloudData.boardState.score || 0);
@@ -264,31 +298,33 @@ const App: React.FC = () => {
                           setGoalProgress(cloudData.boardState.goalProgress || {});
                           setHasSavedSession(true);
                       }
-                  } else {
-                      // New User - Check for Referral
-                      const newCode = 'ELZR-' + Math.random().toString(36).substring(2, 8).toUpperCase();
-                      currentStats = { ...DEFAULT_STATS, referralCode: newCode };
                       
-                      if (startParam && startParam !== newCode) {
-                         // User invited by startParam
-                         currentStats = { 
-                             ...currentStats, 
-                             redeemedReferralCode: startParam,
-                             friends: [] 
-                         };
-                         currentInv = {
-                             ...currentInv,
-                             coins: 500,
-                             boosters: { ...currentInv.boosters, bomb: 2 }
-                         };
+                      tgStorage.saveGameState({
+                          currentLevel: currentLvl,
+                          inventory: currentInv,
+                          stats: currentStats,
+                          lastDailyCompleted: currentDaily,
+                          boardState: cloudData.boardState,
+                          timestamp: Date.now()
+                      });
+
+                  } else {
+                      const newCode = generateSecureReferralCode(tid);
+                      currentStats = { ...DEFAULT_STATS, referralCode: newCode, friends: [] };
+                      
+                      if (startParam && !startParam.startsWith('confirm_') && startParam !== newCode) {
+                         currentStats = { ...currentStats, redeemedReferralCode: startParam };
+                         currentInv = { ...currentInv, coins: 500, boosters: { ...currentInv.boosters, bomb: 2 } };
+                         
+                         const referrerId = decodeReferralCode(startParam);
+                         if (referrerId) {
+                             safeSendReferralNotification(referrerId, tname, tid, BOT_TOKEN, WEB_APP_URL);
+                         }
                       }
 
                       setInventory(currentInv);
                       setUserStats(currentStats);
-                  }
-                  
-                  // Initial save ensures data structure is set
-                  if (!cloudData) {
+                      
                       tgStorage.saveGameState({
                           currentLevel: currentLvl,
                           inventory: currentInv,
@@ -299,13 +335,9 @@ const App: React.FC = () => {
                       });
                   }
                   
-              } catch (e: any) {
-                  console.error("Init Error:", e);
-              } finally { 
-                  setIsLoading(false); 
-              }
+              } catch (e: any) { console.error("Init Error:", e); } 
+              finally { setIsLoading(false); }
           } else {
-              // Fallback for non-telegram browser testing
               setTelegramName("Local Tester");
               setTelegramId("local_tester");
               setIsTelegramUser(true); 
@@ -317,7 +349,6 @@ const App: React.FC = () => {
 
   useEffect(() => {
       if (showLeaderboard) {
-          // Generate Client-Side Mock Leaderboard
           const data = getLeaderboard(userStats, currentLevelIndex + 1, telegramName);
           setLeaderboardData(data);
       }
@@ -416,7 +447,6 @@ const App: React.FC = () => {
     setShuffleAvailable(true); setPreGameBoosters({ bomb: false, extraMoves: false });
     
     setHasSavedSession(false);
-    // Initial Save to clear 'saved session' flag in cloud but keep stats
     persistData(currentInv, userStats, undefined, undefined, false);
   };
 
@@ -432,19 +462,14 @@ const App: React.FC = () => {
     const today = getTodayDateString();
     if (userStats.lastLoginRewardDate === today) return;
 
-    // Reward: 100 Coins + 1 Shuffle
     const rewardCoins = 100;
     const newInv = {
         ...inventory,
         coins: inventory.coins + rewardCoins,
-        boosters: {
-            ...inventory.boosters,
-            shuffle: inventory.boosters.shuffle + 1
-        }
+        boosters: { ...inventory.boosters, shuffle: inventory.boosters.shuffle + 1 }
     };
 
     const newStats = { ...userStats, lastLoginRewardDate: today };
-
     setInventory(newInv);
     setUserStats(newStats);
     
@@ -455,7 +480,6 @@ const App: React.FC = () => {
   useEffect(() => {
       if (gameState === 'WON' && !winProcessed.current) {
           winProcessed.current = true;
-          // Clear board state on win
           const nextLevelIndex = playMode === 'CAMPAIGN' ? currentLevelIndex + 1 : currentLevelIndex;
           const newStats = { ...userStats, totalScore: userStats.totalScore + score };
           setUserStats(newStats);
@@ -474,19 +498,17 @@ const App: React.FC = () => {
                }
           }
           
-          // Persist Win Data to Cloud
           persistData(newInv, newStats, nextLevelIndex, newDaily, false);
           setHasSavedSession(false);
       }
   }, [gameState, playMode, score, inventory, currentLevelIndex, lastDailyCompleted, telegramId]);
 
-  // Client-side referral simulation
-  const handleRedeemReferral = (code: string) => {
+  const handleRedeemReferral = async (code: string) => {
       if (userStats.redeemedReferralCode) return { success: false, message: "Code already redeemed" };
       if (code === userStats.referralCode) return { success: false, message: "Cannot use your own code" };
 
-      // Since we don't have a backend to check if the code exists, we accept any valid-looking code (simulation)
-      if (code.length < 5) return { success: false, message: "Invalid Code" };
+      const referrerId = decodeReferralCode(code);
+      if (!referrerId) return { success: false, message: "Invalid Code Format" };
 
       const rewards = { coins: 500, bomb: 1 };
       const newInv = {
@@ -494,18 +516,26 @@ const App: React.FC = () => {
           coins: inventory.coins + rewards.coins,
           boosters: { ...inventory.boosters, bomb: inventory.boosters.bomb + rewards.bomb }
       };
-      
       const newStats = { ...userStats, redeemedReferralCode: code };
       setInventory(newInv);
       setUserStats(newStats);
-      
-      // Save
       persistData(newInv, newStats);
 
-      return { success: true, message: `Redeemed! +${rewards.coins} Coins`, reward: rewards };
+      const result = await safeSendReferralNotification(
+          referrerId, 
+          telegramName, 
+          telegramId || "unknown", 
+          BOT_TOKEN, 
+          WEB_APP_URL
+      );
+
+      if (result.success) {
+          return { success: true, message: `Redeemed! +${rewards.coins} Coins. Friend notified!` };
+      } else {
+          return { success: true, message: `Redeemed! (Notification failed: ${result.message})` };
+      }
   };
 
-  // Manual Tracking for Serverless Environment
   const handleManualAddFriend = (name: string) => {
     const newFriend: Friend = {
         id: Date.now().toString(),
@@ -513,24 +543,14 @@ const App: React.FC = () => {
         bonusEarned: 500,
         date: new Date().toLocaleDateString()
     };
-    
-    // Add friend to list and increment count
     const newStats = {
         ...userStats,
         referrals: (userStats.referrals || 0) + 1,
         friends: [...(userStats.friends || []), newFriend]
     };
-    
-    // Reward user for tracking (incentivize using the feature)
-    const newInv = {
-        ...inventory,
-        coins: inventory.coins + 500
-    };
-
+    const newInv = { ...inventory, coins: inventory.coins + 500 };
     setInventory(newInv);
     setUserStats(newStats);
-    
-    // Persist immediately to Cloud
     persistData(newInv, newStats);
     showToast(`Friend ${name} added! +500 Coins`);
   };
@@ -577,7 +597,6 @@ const App: React.FC = () => {
                 setIsProcessing(true); showToast("No Moves! Shuffling...");
                 setTimeout(() => { setBoard(shuffleBoard(board)); setIsProcessing(false); }, 1500);
             } else {
-                // Auto-save board state for resumption on every stable move
                 persistData(inventory, userStats, currentLevelIndex, lastDailyCompleted, true);
             }
         }
@@ -694,6 +713,19 @@ const App: React.FC = () => {
       <div className={`absolute top-24 left-1/2 transform -translate-x-1/2 z-[100] transition-all duration-300 pointer-events-none ${toastMessage ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'}`}><div className="bg-black/80 text-white px-6 py-2 rounded-full backdrop-blur-md border border-white/10 shadow-xl font-bold flex items-center gap-2 text-sm whitespace-nowrap"><Zap size={16} className="text-yellow-400 fill-yellow-400" />{toastMessage}</div></div>
       {isSaving && <div className="absolute top-4 right-4 z-[90] flex items-center gap-2 bg-black/60 px-3 py-1 rounded-full text-xs font-bold text-white/80 animate-pulse border border-white/10"><Cloud size={12} /> Saving...</div>}
       
+      {/* ADMIN PANEL INTEGRATION */}
+      <AdminPanel 
+        telegramId={telegramId}
+        inventory={inventory}
+        setInventory={setInventory}
+        userStats={userStats}
+        setUserStats={setUserStats}
+        currentLevelIndex={currentLevelIndex}
+        setCurrentLevelIndex={setCurrentLevelIndex}
+        setGameState={setGameState}
+        persistData={persistData}
+      />
+
       {isShuffling && (<div className="absolute inset-0 z-[80] flex items-center justify-center bg-black/60 backdrop-blur-md animate-in fade-in duration-200"><div className="flex flex-col items-center gap-4"><div className="relative"><Shuffle size={64} className="text-white animate-spin duration-1000" /><div className="absolute top-0 left-0 w-full h-full animate-ping opacity-40 bg-white rounded-full" /></div><div className="text-2xl font-bold text-white tracking-widest uppercase animate-pulse">Shuffling...</div></div></div>)}
       <ComboVisualsOverlay active={comboVisuals?.active || false} type={comboVisuals?.type || null} />
       
@@ -798,6 +830,7 @@ const App: React.FC = () => {
             </div>
           </>
       )}
+      {/* ... (Modals) ... */}
       {showInfoModal && (
         <div className="absolute inset-0 z-[70] flex items-center justify-center bg-black/80 backdrop-blur-sm animate-in fade-in duration-200 px-4">
           <div className="bg-game-bg border border-white/20 w-full max-w-sm rounded-3xl p-6 shadow-2xl relative max-h-[80vh] overflow-y-auto">
