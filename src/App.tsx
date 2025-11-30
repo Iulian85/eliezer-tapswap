@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Board, LevelConfig, PlayMode, Inventory, CandyType, Difficulty, CandyColor, UserStats, LeaderboardEntry, PurchaseRecord } from './src/types';
+import { Board, LevelConfig, PlayMode, Inventory, CandyType, Difficulty, CandyColor, UserStats, LeaderboardEntry, PurchaseRecord, Friend } from './src/types';
 import { 
   createInitialBoard, 
   findMatches, 
@@ -505,6 +505,36 @@ const App: React.FC = () => {
       return { success: true, message: `Redeemed! +${rewards.coins} Coins`, reward: rewards };
   };
 
+  // Manual Tracking for Serverless Environment
+  const handleManualAddFriend = (name: string) => {
+    const newFriend: Friend = {
+        id: Date.now().toString(),
+        name: name,
+        bonusEarned: 500,
+        date: new Date().toLocaleDateString()
+    };
+    
+    // Add friend to list and increment count
+    const newStats = {
+        ...userStats,
+        referrals: (userStats.referrals || 0) + 1,
+        friends: [...(userStats.friends || []), newFriend]
+    };
+    
+    // Reward user for tracking (incentivize using the feature)
+    const newInv = {
+        ...inventory,
+        coins: inventory.coins + 500
+    };
+
+    setInventory(newInv);
+    setUserStats(newStats);
+    
+    // Persist immediately to Cloud
+    persistData(newInv, newStats);
+    showToast(`Friend ${name} added! +500 Coins`);
+  };
+
   useEffect(() => {
     if (gameState !== 'PLAYING') return;
     let timeoutId: ReturnType<typeof setTimeout>;
@@ -791,7 +821,7 @@ const App: React.FC = () => {
       {gameState === 'LOST' && (<div className="absolute inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm animate-in fade-in duration-300"><div className="bg-[#2a1b3d] border border-white/10 p-8 rounded-[2rem] shadow-2xl text-center max-w-xs w-full"><div className="w-20 h-20 bg-white/10 rounded-full mx-auto flex items-center justify-center mb-4"><RotateCcw size={40} className="text-white/50" /></div><h2 className="text-3xl font-black text-white mb-2">Out of Moves!</h2><p className="text-white/50 mb-8 text-sm">Don't give up, try again!</p><div className="space-y-3"><button onClick={() => showAd(() => initGame(activeLevel))} className="w-full py-3.5 rounded-xl bg-white text-black font-bold hover:bg-gray-100 transition-colors">Try Again</button><button onClick={() => setGameState('INTRO')} className="w-full py-3.5 rounded-xl bg-white/5 text-white font-bold hover:bg-white/10 transition-colors flex items-center justify-center gap-2"><Home size={16} /> Main Menu</button></div></div></div>)}
       <ShopModal isOpen={isShopOpen} onClose={() => setIsShopOpen(false)} inventory={inventory} onBuy={handleBuyBooster} walletConnected={!!wallet} stats={userStats} />
       <WalletModal isOpen={isWalletOpen} onClose={() => setIsWalletOpen(false)} walletAddress={wallet?.account.address ? `${wallet.account.address.substring(0, 6)}...${wallet.account.address.substring(wallet.account.address.length - 4)}` : null} stats={userStats} />
-      <FrensModal isOpen={isFrensOpen} onClose={() => setIsFrensOpen(false)} stats={userStats} onRedeemCode={handleRedeemReferral} />
+      <FrensModal isOpen={isFrensOpen} onClose={() => setIsFrensOpen(false)} stats={userStats} onRedeemCode={handleRedeemReferral} onManualAddFriend={handleManualAddFriend} />
     </div>
   );
 };

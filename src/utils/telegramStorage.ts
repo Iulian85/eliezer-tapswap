@@ -20,25 +20,37 @@ export interface CloudGameState {
 }
 
 export const tgStorage = {
+    // Helper to check support
+    isCloudStorageSupported: (): boolean => {
+        const tg = window.Telegram?.WebApp;
+        // CloudStorage was introduced in version 6.9
+        return tg && tg.isVersionAtLeast && tg.isVersionAtLeast('6.9');
+    },
+
     // Generic Set
     setItem: (key: string, value: string): Promise<boolean> => {
         return new Promise((resolve) => {
-            // Check if Telegram WebApp is available
-            const tg = window.Telegram?.WebApp;
-            
-            if (tg && tg.CloudStorage && typeof tg.CloudStorage.setItem === 'function') {
-                tg.CloudStorage.setItem(key, value, (err: any, saved: boolean) => {
-                    if (err) {
-                        console.error('CloudStorage Save Error:', err);
-                        // Fallback to local storage if cloud fails
-                        try { localStorage.setItem(key, value); } catch(e){}
-                        resolve(false);
-                    } else {
-                        resolve(saved);
-                    }
-                });
+            // Check support first
+            if (tgStorage.isCloudStorageSupported()) {
+                const tg = window.Telegram?.WebApp;
+                
+                try {
+                    tg.CloudStorage.setItem(key, value, (err: any, saved: boolean) => {
+                        if (err) {
+                            console.warn('CloudStorage Save Error (Fallback to Local):', err);
+                            try { localStorage.setItem(key, value); } catch(e){}
+                            resolve(false);
+                        } else {
+                            resolve(saved);
+                        }
+                    });
+                } catch (e) {
+                    console.warn('CloudStorage Exception (Fallback to Local):', e);
+                    try { localStorage.setItem(key, value); } catch(err){}
+                    resolve(false);
+                }
             } else {
-                // Fallback to LocalStorage for browser testing
+                // Fallback to LocalStorage for older Telegram versions or browser testing
                 try {
                     localStorage.setItem(key, value);
                     resolve(true);
@@ -53,20 +65,30 @@ export const tgStorage = {
     // Generic Get
     getItem: (key: string): Promise<string | null> => {
         return new Promise((resolve) => {
-            const tg = window.Telegram?.WebApp;
-
-            if (tg && tg.CloudStorage && typeof tg.CloudStorage.getItem === 'function') {
-                tg.CloudStorage.getItem(key, (err: any, value: string | null) => {
-                    if (err) {
-                        console.error('CloudStorage Load Error:', err);
-                        // Fallback to local storage
-                        resolve(localStorage.getItem(key));
-                    } else {
-                        resolve(value);
-                    }
-                });
+            if (tgStorage.isCloudStorageSupported()) {
+                const tg = window.Telegram?.WebApp;
+                try {
+                    tg.CloudStorage.getItem(key, (err: any, value: string | null) => {
+                        if (err) {
+                            console.warn('CloudStorage Load Error (Fallback to Local):', err);
+                            resolve(localStorage.getItem(key));
+                        } else {
+                            // If cloud returns empty, try local (migration scenario)
+                            if (!value) {
+                                const local = localStorage.getItem(key);
+                                if (local) resolve(local);
+                                else resolve(null);
+                            } else {
+                                resolve(value);
+                            }
+                        }
+                    });
+                } catch (e) {
+                    console.warn('CloudStorage Exception (Fallback to Local):', e);
+                    resolve(localStorage.getItem(key));
+                }
             } else {
-                // Fallback to LocalStorage for browser testing
+                // Fallback to LocalStorage
                 resolve(localStorage.getItem(key));
             }
         });

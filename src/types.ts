@@ -85,6 +85,7 @@ export interface UserStats {
   referralCode?: string;
   redeemedReferralCode?: string;
   friends?: Friend[];
+  lastLoginRewardDate?: string; // YYYY-MM-DD
 }
 
 export type PlayMode = 'CAMPAIGN' | 'DAILY';
