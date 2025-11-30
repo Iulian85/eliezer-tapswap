@@ -135,7 +135,7 @@ export const WalletModal: React.FC<WalletModalProps> = ({ isOpen, onClose, walle
                  <TokenRow label="Airdrop Pool:" value="17,000,000 ELZR" highlight />
                  <TokenRow label="Team & Development:" value="4,000,000 ELZR" />
                  <div className="h-px bg-white/10 my-2" />
-                 <TokenRow label="Generation Date:" value="11.07.2025" />
+                 <TokenRow label="Generation Date:" value="11.07.2024" />
                  <TokenRow label="Blockchain:" value="TON Network" />
              </div>
          </div>
