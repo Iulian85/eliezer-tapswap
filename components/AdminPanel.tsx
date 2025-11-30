@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Wrench, X, Coins, Zap, Unlock, Trash2 } from 'lucide-react';
-import { Inventory, UserStats } from '../types';
+import { Inventory, UserStats } from '../src/types';
 import { LEVELS } from '../constants';
 
 interface AdminPanelProps {
