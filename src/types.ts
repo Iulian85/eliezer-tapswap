@@ -1,125 +1,52 @@
+export type TokenType = 'HMSTR' | 'USDT' | 'NOT' | 'DOGS' | 'TON' | 'ELZR' | 'EMPTY';
 
-export enum CandyColor {
-  Red = 'RED',
-  Blue = 'BLUE',
-  Green = 'GREEN',
-  Yellow = 'YELLOW',
-  Purple = 'PURPLE',
-  Orange = 'ORANGE',
-  Multi = 'MULTI', // For Rainbow
-}
-
-export enum CandyType {
-  Normal = 'NORMAL',
-  StripedHorizontal = 'STRIPED_H',
-  StripedVertical = 'STRIPED_V',
-  Bomb = 'BOMB',
-  Rainbow = 'RAINBOW',
-}
-
-export interface Candy {
-  id: string;
-  color: CandyColor;
-  type: CandyType;
-  isMatched?: boolean;
-  isNew?: boolean; // For animation
-  isSettling?: boolean; // For fall/settle animation
-}
-
-export type Board = (Candy | null)[];
-
-export interface DragState {
-  active: boolean;
-  startIndex: number | null;
-}
-
-// Level System Types
-export type GoalType = 'SCORE' | 'COLLECT';
-
-export interface LevelGoal {
-  id: string;
-  type: GoalType;
-  target: number;
-  description: string;
-  targetColor?: CandyColor; // For COLLECT goals
-  targetCandyType?: CandyType | 'STRIPED_ANY'; // For specific candy type collection
+export interface Tile {
+  id: string; // Unique ID for keying
+  type: TokenType;
+  x: number; // Grid X
+  y: number; // Grid Y (0 is bottom)
+  isMatched: boolean;
 }
 
 export interface LevelConfig {
-  levelNumber: number | string; // String for 'Daily'
+  id: number;
   moves: number;
-  timeLimit: number; // Time limit in seconds
-  goals: LevelGoal[];
+  targetScore: number;
+  layout?: number[][]; // 0 for empty, 1 for active
 }
 
-export interface Inventory {
-  coins: number;
-  boosters: {
-    bomb: number;
-    extraMoves: number;
-    shuffle: number;
-  };
-}
-
-export interface Friend {
-  id: string;
-  name: string;
-  bonusEarned: number;
-  date: string;
-}
-
-export interface PurchaseRecord {
-  id: string;
-  item: string;
-  cost: number;
-  date: string;
-}
-
-export interface UserStats {
-  totalScore: number;
-  totalTimePlayed: number; // in seconds
-  referrals: number;
-  adsViewed: number;
-  tonPurchases: number;
-  purchaseHistory: PurchaseRecord[];
-  referralCode?: string;
-  redeemedReferralCode?: string;
-  friends?: Friend[];
-  lastLoginRewardDate?: string; // YYYY-MM-DD
-}
-
-export type PlayMode = 'CAMPAIGN' | 'DAILY';
-
-export type Difficulty = 'EASY' | 'MEDIUM' | 'HARD';
-
-export interface HighScore {
+export interface GameState {
+  // Game Logic
+  grid: Tile[][];
+  width: number;
+  height: number;
   score: number;
-  level: string | number;
-  date: string;
-}
-
-export interface LeaderboardEntry {
-  rank: number;
-  name: string;
-  score: number;
+  movesLeft: number;
   level: number;
-  isUser: boolean;
+  gameState: 'MENU' | 'PLAYING' | 'WON' | 'LOST';
+  selectedTile: { x: number; y: number } | null;
+  isProcessing: boolean; // Animations running
+  
+  // User Data
+  maxLevelReached: number;
+  walletBalance: number; // In-game ELZR tokens
+  
+  // Methods
+  startGame: (levelId: number) => void;
+  selectTile: (x: number, y: number) => void;
+  processBoard: () => Promise<void>;
+  loadCloudData: () => Promise<void>;
 }
 
-export interface AdsgramShowResult {
-    done: boolean; // true if ad was watched to the end
-    description: string; // event description
-    state: 'load' | 'render' | 'playing' | 'destroy';
-    error: boolean; // true if error
-}
+export const TOKEN_COLORS: Record<TokenType, string> = {
+  HMSTR: '#D97706', // Amber/Orange
+  USDT: '#22C55E', // Green
+  NOT: '#171717',  // Black
+  DOGS: '#F3F4F6', // White
+  TON: '#3B82F6',  // Blue
+  ELZR: '#EAB308', // Gold
+  EMPTY: 'transparent'
+};
 
-declare global {
-    interface Window {
-        Telegram?: any;
-        Adsgram?: {
-            init: (params: { blockId: string; debug?: boolean }) => {
-                show: () => Promise<AdsgramShowResult>;
-            };
-        };
-    }
-}
+export const GRID_W = 8;
+export const GRID_H = 9;

@@ -1,20 +1,38 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# Eliezer Rush 🐹
 
-# Run and deploy your AI Studio app
+A premium 3D Match-3 Crypto game built for Telegram Mini Apps.
 
-This contains everything you need to run your app locally.
+## Stack
+- React 18 + Vite
+- TypeScript
+- React Three Fiber (3D) + React Spring
+- Zustand (State)
+- Tailwind CSS
+- Telegram WebApp SDK
 
-View your app in AI Studio: https://ai.studio/apps/drive/1ePfcfhTVJhh0rrkiT1ftVOIOUk1Fh6uz
-
-## Run Locally
-
-**Prerequisites:**  Node.js
-
+## Quick Start
 
 1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+```bash
+npm install
+```
+
+2. Run development server:
+```bash
+npm run dev
+```
+
+3. Build for production:
+```bash
+npm run build
+```
+
+## Telegram Integration
+- **Haptic Feedback**: Integrated into game moves.
+- **CloudStorage**: Saves wallet balance and max level reached.
+- **Theme**: Adapts partially to Telegram params, but enforces a dark theme for game aesthetics.
+
+## Deploy
+This project is ready for Vercel or Railway.
+- Ensure `vite.config.ts` is set up (included).
+- Use `dist/` as the publish directory.
