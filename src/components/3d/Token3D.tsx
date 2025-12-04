@@ -58,8 +58,8 @@ const Token3D: React.FC<Props> = ({ data, selected, onClick }) => {
           <Cylinder args={[0.45, 0.45, 0.15, 32]}>
             <meshStandardMaterial
               color={color}
-              metalness={0.9}
-              roughness={0.4}
+              metalness={0.8}
+              roughness={0.3}
               emissive={selected ? color : '#000'}
               emissiveIntensity={selected ? 0.5 : 0}
             />
@@ -68,7 +68,7 @@ const Token3D: React.FC<Props> = ({ data, selected, onClick }) => {
           
           {/* Face Detail (Rim) */}
           <Cylinder args={[0.4, 0.4, 0.16, 32]}>
-             <meshStandardMaterial color={color} metalness={0.6} roughness={0.6} />
+             <meshStandardMaterial color={color} metalness={0.7} roughness={0.5} />
           </Cylinder>
 
           {/* Text Symbol */}
