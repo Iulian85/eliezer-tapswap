@@ -2,6 +2,7 @@ import React, { useRef, useMemo } from 'react';
 import { useSpring, animated, config } from '@react-spring/three';
 import { Text, Cylinder, Float, Sparkles } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
+// FIX: TOKEN_COLORS is now exported from src/types.ts
 import { Tile, TOKEN_COLORS } from '../../types';
 import * as THREE from 'three';
 
@@ -22,6 +23,7 @@ const Token: React.FC<TokenProps> = ({ data, isSelected, onClick }) => {
 
   const { position, scale, rotation } = useSpring({
     position: [targetX, targetY, 0],
+    // FIX: TokenType now includes 'EMPTY'
     scale: data.type === 'EMPTY' ? 0 : isSelected ? 1.2 : 1,
     rotation: isSelected ? [0, Math.PI * 2, 0] : [Math.PI / 2, 0, 0],
     config: config.gentle,
@@ -42,6 +44,7 @@ const Token: React.FC<TokenProps> = ({ data, isSelected, onClick }) => {
     }
   }, [data.type]);
 
+  // FIX: TokenType now includes 'EMPTY'
   if (data.type === 'EMPTY') return null;
 
   return (

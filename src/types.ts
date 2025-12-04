@@ -1,43 +1,37 @@
+// FIX: Added 'EMPTY' to allow for empty tiles after matches.
 export type TokenType = 'HMSTR' | 'USDT' | 'NOT' | 'DOGS' | 'TON' | 'ELZR' | 'EMPTY';
 
 export interface Tile {
-  id: string; // Unique ID for keying
+  id: string;
   type: TokenType;
-  x: number; // Grid X
-  y: number; // Grid Y (0 is bottom)
-  isMatched: boolean;
+  x: number;
+  y: number;
+  // FIX: Added optional isMatched property to align with its usage in matchLogic.ts without breaking other components.
+  isMatched?: boolean; 
 }
 
-export interface LevelConfig {
-  id: number;
-  moves: number;
-  targetScore: number;
-  layout?: number[][]; // 0 for empty, 1 for active
-}
-
-export interface GameState {
-  // Game Logic
-  grid: Tile[][];
+export interface GameStoreState {
+  grid: Tile[]; // Flat array for easier manipulation
   width: number;
   height: number;
   score: number;
-  movesLeft: number;
+  moves: number;
   level: number;
-  gameState: 'MENU' | 'PLAYING' | 'WON' | 'LOST';
-  selectedTile: { x: number; y: number } | null;
-  isProcessing: boolean; // Animations running
+  isProcessing: boolean;
+  selectedId: string | null;
+  gameState: 'MENU' | 'PLAYING' | 'GAMEOVER' | 'WON';
+  walletBalance: number;
   
-  // User Data
-  maxLevelReached: number;
-  walletBalance: number; // In-game ELZR tokens
-  
-  // Methods
-  startGame: (levelId: number) => void;
-  selectTile: (x: number, y: number) => void;
-  processBoard: () => Promise<void>;
-  loadCloudData: () => Promise<void>;
+  // Actions
+  initGame: (level?: number) => void;
+  startGame: (level: number) => void;
+  selectTile: (id: string) => void;
+  loadProgress: () => Promise<void>;
 }
 
+export const TOKEN_TYPES: TokenType[] = ['HMSTR', 'USDT', 'NOT', 'DOGS', 'TON', 'ELZR'];
+
+// FIX: Exported TOKEN_COLORS to be used in components like Token.tsx.
 export const TOKEN_COLORS: Record<TokenType, string> = {
   HMSTR: '#D97706', // Amber/Orange
   USDT: '#22C55E', // Green

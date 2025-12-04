@@ -8,7 +8,6 @@ export const generateRandomTile = (x: number, y: number): Tile => ({
   type: TYPES[Math.floor(Math.random() * TYPES.length)],
   x,
   y,
-  isMatched: false
 });
 
 export const createInitialGrid = (): Tile[][] => {

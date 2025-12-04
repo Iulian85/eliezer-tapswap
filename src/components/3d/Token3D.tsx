@@ -1,7 +1,8 @@
-import { useRef, useMemo } from 'react';
+import React, { useRef, useMemo } from 'react';
 import { useSpring, animated, config } from '@react-spring/three';
 import { Text, Cylinder, Float, Outlines } from '@react-three/drei';
-import { TokenType, Tile } from '../../store/useGameStore';
+import { useFrame } from '@react-three/fiber';
+import { TokenType, Tile, TOKEN_COLORS } from '../../types';
 import * as THREE from 'three';
 
 interface Props {
@@ -10,15 +11,6 @@ interface Props {
   onClick: () => void;
 }
 
-const COLORS: Record<TokenType, string> = {
-  HMSTR: '#D97706', // Orange
-  USDT: '#10B981', // Green
-  NOT: '#111827',  // Black
-  DOGS: '#F3F4F6', // White
-  TON: '#3B82F6',  // Blue
-  ELZR: '#F59E0B', // Gold
-};
-
 const LABELS: Record<TokenType, string> = {
   HMSTR: '🐹',
   USDT: '$',
@@ -26,6 +18,7 @@ const LABELS: Record<TokenType, string> = {
   DOGS: '🐶',
   TON: '💎',
   ELZR: '▲',
+  EMPTY: ''
 };
 
 // Calculate 3D position from Grid X/Y
@@ -36,8 +29,22 @@ const getPos = (x: number, y: number): [number, number, number] => {
   return [(x * spacing) - xOffset, (y * spacing) - yOffset, 0];
 };
 
-export default function Token3D({ data, selected, onClick }: Props) {
+const Token3D: React.FC<Props> = ({ data, selected, onClick }) => {
+  // Guard clause for empty tiles (destroyed)
+  if (data.type === 'EMPTY') return null;
+
   const [targetX, targetY, targetZ] = getPos(data.x, data.y);
+  const meshRef = useRef<THREE.Group>(null);
+
+  // Randomize rotation speed and direction
+  const rotationSpeed = useMemo(() => (Math.random() * 0.5 + 0.2) * (Math.random() > 0.5 ? 1 : -1), []);
+
+  useFrame((state, delta) => {
+    if (meshRef.current && !selected) {
+      // Rotate around Z axis (which maps to vertical World Y due to parent rotation)
+      meshRef.current.rotation.z += delta * rotationSpeed;
+    }
+  });
 
   const { position, scale, rotation } = useSpring({
     position: [targetX, targetY, targetZ],
@@ -46,7 +53,7 @@ export default function Token3D({ data, selected, onClick }: Props) {
     config: config.gentle
   });
 
-  const color = COLORS[data.type];
+  const color = TOKEN_COLORS[data.type] || '#ffffff';
 
   return (
     <animated.group
@@ -59,35 +66,39 @@ export default function Token3D({ data, selected, onClick }: Props) {
       }}
     >
       <Float speed={2} rotationIntensity={0.2} floatIntensity={0.1}>
-        <Cylinder args={[0.45, 0.45, 0.15, 32]}>
-          <meshStandardMaterial
-            color={color}
-            metalness={0.7}
-            roughness={0.2}
-            emissive={selected ? color : '#000'}
-            emissiveIntensity={selected ? 0.5 : 0}
-          />
-          <Outlines thickness={0.02} color={selected ? 'white' : 'black'} />
-        </Cylinder>
-        
-        {/* Face Detail (Rim) */}
-        <Cylinder args={[0.4, 0.4, 0.16, 32]}>
-           <meshStandardMaterial color={color} metalness={0.5} roughness={0.4} />
-        </Cylinder>
+        <group ref={meshRef}>
+          <Cylinder args={[0.45, 0.45, 0.15, 32]}>
+            <meshStandardMaterial
+              color={color}
+              metalness={0.7}
+              roughness={0.2}
+              emissive={selected ? color : '#000'}
+              emissiveIntensity={selected ? 0.5 : 0}
+            />
+            <Outlines thickness={0.02} color={selected ? 'white' : 'black'} />
+          </Cylinder>
+          
+          {/* Face Detail (Rim) */}
+          <Cylinder args={[0.4, 0.4, 0.16, 32]}>
+             <meshStandardMaterial color={color} metalness={0.5} roughness={0.4} />
+          </Cylinder>
 
-        {/* Text Symbol */}
-        <Text
-          position={[0, 0.1, 0]}
-          rotation={[-Math.PI / 2, 0, 0]}
-          fontSize={0.4}
-          fontWeight={800}
-          color={data.type === 'DOGS' || data.type === 'USDT' ? 'black' : 'white'}
-          anchorX="center"
-          anchorY="middle"
-        >
-          {LABELS[data.type]}
-        </Text>
+          {/* Text Symbol */}
+          <Text
+            position={[0, 0.1, 0]}
+            rotation={[-Math.PI / 2, 0, 0]}
+            fontSize={0.4}
+            fontWeight={800}
+            color={data.type === 'DOGS' || data.type === 'USDT' ? 'black' : 'white'}
+            anchorX="center"
+            anchorY="middle"
+          >
+            {LABELS[data.type]}
+          </Text>
+        </group>
       </Float>
     </animated.group>
   );
-}
+};
+
+export default Token3D;
