@@ -21,6 +21,7 @@ export interface GameStoreState {
   selectedId: string | null;
   gameState: 'MENU' | 'PLAYING' | 'GAMEOVER' | 'WON';
   walletBalance: number;
+  lastMatchedPositions: { x: number, y: number }[]; // For particle effects
   
   // Actions
   initGame: (level?: number) => void;

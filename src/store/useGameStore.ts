@@ -59,6 +59,7 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
   selectedId: null,
   gameState: 'MENU',
   walletBalance: 0,
+  lastMatchedPositions: [],
 
   initGame: (level = 1) => {
     let newGrid: Tile[] = [];
@@ -87,7 +88,8 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
       level, 
       gameState: 'PLAYING',
       isProcessing: false,
-      selectedId: null
+      selectedId: null,
+      lastMatchedPositions: [],
     });
   },
 
@@ -157,10 +159,15 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
     let totalScoreThisTurn = 0;
 
     while (matches.size > 0) {
-      // 4. Update score
+      // 4. Update score & trigger particle effects
       const matchScore = matches.size * 10 * combo;
       totalScoreThisTurn += matchScore;
       if (combo > 1) hapticFeedback('heavy');
+
+      const matchedTiles = currentGrid.filter(t => matches.has(t.id));
+      const matchedPositions = matchedTiles.map(t => ({ x: t.x, y: t.y }));
+      set({ lastMatchedPositions: matchedPositions });
+      setTimeout(() => set({ lastMatchedPositions: [] }), 300); // Clear particles after a moment
       
       // 5. Create a new grid with matched tiles removed and remaining tiles "falling"
       const nextGrid: Tile[] = [];

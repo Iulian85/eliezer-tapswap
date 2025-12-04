@@ -3,6 +3,7 @@ import { useSpring, animated, config } from '@react-spring/three';
 import { Text, Cylinder, Float, Outlines } from '@react-three/drei';
 import { TokenType, Tile, TOKEN_COLORS } from '../../types';
 import * as THREE from 'three';
+import { getPos } from '../../utils/grid';
 
 interface Props {
   data: Tile;
@@ -18,14 +19,6 @@ const LABELS: Record<TokenType, string> = {
   TON: '💎',
   ELZR: '▲',
   EMPTY: ''
-};
-
-// Calculate 3D position from Grid X/Y
-const getPos = (x: number, y: number): [number, number, number] => {
-  const spacing = 1.1;
-  const xOffset = (8 * spacing) / 2 - 0.5; // Centering
-  const yOffset = (9 * spacing) / 2 - 0.5;
-  return [(x * spacing) - xOffset, (y * spacing) - yOffset, 0];
 };
 
 const Token3D: React.FC<Props> = ({ data, selected, onClick }) => {

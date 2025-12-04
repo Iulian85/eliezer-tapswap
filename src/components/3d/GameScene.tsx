@@ -3,11 +3,13 @@ import { Stars, Sparkles } from '@react-three/drei';
 import { EffectComposer, Bloom } from '@react-three/postprocessing';
 import { useGameStore } from '../../store/useGameStore';
 import Token3D from './Token3D';
+import { getPos } from '../../utils/grid';
 
 export default function GameScene() {
   const grid = useGameStore(s => s.grid);
   const selectedId = useGameStore(s => s.selectedId);
   const selectTile = useGameStore(s => s.selectTile);
+  const lastMatchedPositions = useGameStore(s => s.lastMatchedPositions);
 
   return (
     <>
@@ -33,6 +35,20 @@ export default function GameScene() {
           />
         ))}
       </group>
+
+      {/* Particle Effects on Match */}
+      {lastMatchedPositions.map((pos, i) => (
+        <Sparkles
+          key={`sparkle-${i}`}
+          position={getPos(pos.x, pos.y)}
+          count={30}
+          scale={1.5}
+          size={4}
+          speed={1}
+          color="#F59E0B"
+        />
+      ))}
+
 
       {/* Post Processing */}
       <Suspense fallback={null}>
