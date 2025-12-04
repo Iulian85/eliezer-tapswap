@@ -1,7 +1,6 @@
-import React, { useRef, useMemo } from 'react';
+import React from 'react';
 import { useSpring, animated, config } from '@react-spring/three';
 import { Text, Cylinder, Float, Outlines } from '@react-three/drei';
-import { useFrame } from '@react-three/fiber';
 import { TokenType, Tile, TOKEN_COLORS } from '../../types';
 import * as THREE from 'three';
 
@@ -34,17 +33,6 @@ const Token3D: React.FC<Props> = ({ data, selected, onClick }) => {
   if (data.type === 'EMPTY') return null;
 
   const [targetX, targetY, targetZ] = getPos(data.x, data.y);
-  const meshRef = useRef<THREE.Group>(null);
-
-  // Randomize rotation speed and direction
-  const rotationSpeed = useMemo(() => (Math.random() * 0.5 + 0.2) * (Math.random() > 0.5 ? 1 : -1), []);
-
-  useFrame((state, delta) => {
-    if (meshRef.current && !selected) {
-      // Rotate around Z axis (which maps to vertical World Y due to parent rotation)
-      meshRef.current.rotation.z += delta * rotationSpeed;
-    }
-  });
 
   const { position, scale, rotation } = useSpring({
     position: [targetX, targetY, targetZ],
@@ -65,8 +53,8 @@ const Token3D: React.FC<Props> = ({ data, selected, onClick }) => {
         onClick();
       }}
     >
-      <Float speed={2} rotationIntensity={0.2} floatIntensity={0.1}>
-        <group ref={meshRef}>
+      <Float speed={2} rotationIntensity={0} floatIntensity={0.1}>
+        <group>
           <Cylinder args={[0.45, 0.45, 0.15, 32]}>
             <meshStandardMaterial
               color={color}
