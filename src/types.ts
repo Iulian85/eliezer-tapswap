@@ -12,6 +12,7 @@ export interface Tile {
 }
 
 export type TabType = 'HOME' | 'TASKS' | 'SHOP' | 'FRENS' | 'WALLET';
+export type BoosterType = 'bomb' | 'shuffle' | 'extraMoves';
 
 export interface User {
   id: number;
@@ -47,6 +48,8 @@ export interface GameStoreState {
     shuffle: number;
     extraMoves: number;
   };
+  activeBooster: BoosterType | null;
+  bombExplosionPosition: { x: number, y: number } | null;
 
   // User Data
   user: User | null;
@@ -62,8 +65,9 @@ export interface GameStoreState {
   claimDailyReward: () => void;
   lastRewardClaimedDate: string | null;
   
-  // Shop Actions
-  buyBooster: (type: 'bomb' | 'shuffle' | 'extraMoves', price: number) => void;
+  // Booster Actions
+  activateBooster: (type: BoosterType) => void;
+  buyBooster: (type: BoosterType, price: number) => void;
 }
 
 export const TOKEN_TYPES: TokenType[] = ['HMSTR', 'USDT', 'NOT', 'DOGS', 'TON', 'ELZR'];

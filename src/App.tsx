@@ -1,9 +1,11 @@
+
 import React, { useEffect } from 'react';
 import { Canvas } from '@react-three/fiber';
 import GameScene from './components/3d/GameScene';
 import HUD from './components/ui/HUD';
 import Menu from './components/ui/Menu';
 import GameOverModal from './components/ui/GameOverModal';
+import BoosterPanel from './components/ui/BoosterPanel';
 import { initTelegram } from './utils/telegram';
 
 function App() {
@@ -23,6 +25,7 @@ function App() {
       
       {/* UI Overlay */}
       <HUD />
+      <BoosterPanel />
       <Menu />
       <GameOverModal />
     </div>

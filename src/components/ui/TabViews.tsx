@@ -1,6 +1,6 @@
 
 import { useGameStore } from '../../store/useGameStore';
-import { initTelegram } from '../../utils/telegram';
+import { tg } from '../../utils/telegram';
 
 export const ShopTab = () => {
     const { walletBalance, buyBooster, boosters } = useGameStore();
@@ -98,7 +98,13 @@ export const TasksTab = () => {
 
 export const FrensTab = () => {
     const { user, frens } = useGameStore();
-    const inviteLink = `https://t.me/EliezerRushBot?start=${user?.id}`;
+    const inviteLink = `https://t.me/EliezerRushBot?start=${user?.id || 'r'}`;
+
+    const handleInvite = () => {
+        const message = "Play Eliezer Rush with me! 🐹💎";
+        const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(inviteLink)}&text=${encodeURIComponent(message)}`;
+        tg.openTelegramLink(shareUrl);
+    };
 
     return (
         <div className="w-full max-w-sm h-[70vh] flex flex-col">
@@ -107,11 +113,8 @@ export const FrensTab = () => {
             <div className="bg-gradient-to-r from-purple-900 to-slate-900 p-6 rounded-2xl mb-6 text-center border border-white/10">
                 <div className="text-sm text-gray-300 mb-2">Invite friends & earn 10%</div>
                 <button 
-                    onClick={() => {
-                        const tg = (window as any).Telegram?.WebApp;
-                        if(tg) tg.openTelegramLink(`https://t.me/share/url?url=${inviteLink}&text=Play Eliezer Rush with me!`);
-                    }}
-                    className="w-full bg-white text-black font-bold py-3 rounded-xl hover:bg-gray-200 transition-colors"
+                    onClick={handleInvite}
+                    className="w-full bg-white text-black font-bold py-3 rounded-xl hover:bg-gray-200 transition-colors active:scale-95"
                 >
                     Invite a Friend 🔗
                 </button>
@@ -148,11 +151,11 @@ export const WalletTab = () => {
             </div>
 
             <div className="grid grid-cols-2 gap-4 mb-6">
-                <button className="bg-slate-800 p-4 rounded-xl border border-white/10 flex flex-col items-center gap-2 active:scale-95">
+                <button className="bg-slate-800 p-4 rounded-xl border border-white/10 flex flex-col items-center gap-2 active:scale-95 hover:bg-slate-700 transition-colors">
                     <span className="text-2xl">⬇️</span>
                     <span className="font-bold text-sm">Deposit</span>
                 </button>
-                <button className="bg-slate-800 p-4 rounded-xl border border-white/10 flex flex-col items-center gap-2 active:scale-95">
+                <button className="bg-slate-800 p-4 rounded-xl border border-white/10 flex flex-col items-center gap-2 active:scale-95 hover:bg-slate-700 transition-colors">
                     <span className="text-2xl">⬆️</span>
                     <span className="font-bold text-sm">Withdraw</span>
                 </button>
