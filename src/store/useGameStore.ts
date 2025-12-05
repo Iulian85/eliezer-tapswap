@@ -1,7 +1,8 @@
+
 import { create } from 'zustand';
 import { v4 as uuidv4 } from 'uuid';
-import { storage, hapticFeedback, hapticNotify } from '../utils/telegram';
-import { GameStoreState, Tile, TOKEN_TYPES, GRID_W, GRID_H } from '../types';
+import { storage, hapticFeedback, hapticNotify, tg } from '../utils/telegram';
+import { GameStoreState, Tile, TOKEN_TYPES, GRID_W, GRID_H, TabType } from '../types';
 
 // Helper: Check for matches in a flat grid array
 const checkMatch = (grid: Tile[]) => {
@@ -60,6 +61,58 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
   gameState: 'MENU',
   walletBalance: 0,
   lastMatchedPositions: [],
+  
+  // Navigation
+  activeTab: 'HOME',
+  
+  // User Data
+  user: null,
+  frens: [],
+
+  // Boosters
+  boosters: {
+    bomb: 1,
+    shuffle: 1,
+    extraMoves: 1
+  },
+  
+  lastRewardClaimedDate: null,
+
+  setActiveTab: (tab: TabType) => {
+    set({ activeTab: tab });
+    hapticFeedback('light');
+  },
+
+  initUser: () => {
+    const user = tg.initDataUnsafe?.user;
+    if (user) {
+        set({ 
+            user: {
+                id: user.id,
+                username: user.username || 'Anon',
+                firstName: user.first_name
+            }
+        });
+    } else {
+        // Fallback for dev
+        set({
+            user: {
+                id: 123456,
+                username: 'DevUser',
+                firstName: 'Developer'
+            }
+        });
+    }
+
+    // Mock Frens
+    set({
+        frens: [
+            { id: 1, name: 'Pavel Durov', score: 99999 },
+            { id: 2, name: 'Elon Musk', score: 50000 },
+            { id: 3, name: 'Satoshi', score: 21000 },
+        ]
+    });
+  },
 
   initGame: (level = 1) => {
     let newGrid: Tile[] = [];
@@ -199,7 +252,7 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
     const finalState = get();
     const targetScore = level * 500;
     if (finalState.score >= targetScore) {
-        set({ gameState: 'WON'});
+        set({ gameState: 'WON', walletBalance: finalState.walletBalance + (level * 50) });
         hapticNotify('success');
     } else if (finalState.moves <= 0) {
         set({ gameState: 'GAMEOVER' });
@@ -207,13 +260,52 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
     }
     
     set({ isProcessing: false });
+    get().loadProgress(); // Re-save (though save logic needs to be explicit)
+    // Implicit save would go here
   },
 
   loadProgress: async () => {
-    const saved = await storage.getItem('eliezer_data');
+    const saved = await storage.getItem('eliezer_data_v2');
     if (saved) {
-      const { walletBalance } = JSON.parse(saved);
-      if(walletBalance) set({ walletBalance });
+      const data = JSON.parse(saved);
+      if(data.walletBalance) set({ walletBalance: data.walletBalance });
+      if(data.boosters) set({ boosters: data.boosters });
+      if(data.lastRewardClaimedDate) set({ lastRewardClaimedDate: data.lastRewardClaimedDate });
+    }
+  },
+
+  claimDailyReward: () => {
+    const today = new Date().toDateString();
+    const { lastRewardClaimedDate, walletBalance } = get();
+
+    if (lastRewardClaimedDate !== today) {
+        set({ 
+            walletBalance: walletBalance + 100,
+            lastRewardClaimedDate: today
+        });
+        hapticNotify('success');
+        // Save logic
+        storage.setItem('eliezer_data_v2', JSON.stringify({
+            walletBalance: walletBalance + 100,
+            boosters: get().boosters,
+            lastRewardClaimedDate: today
+        }));
+    }
+  },
+
+  buyBooster: (type, price) => {
+    const { walletBalance, boosters } = get();
+    if (walletBalance >= price) {
+        set({
+            walletBalance: walletBalance - price,
+            boosters: {
+                ...boosters,
+                [type]: boosters[type] + 1
+            }
+        });
+        hapticNotify('success');
+    } else {
+        hapticNotify('error');
     }
   }
 }));

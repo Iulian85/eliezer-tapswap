@@ -1,3 +1,4 @@
+
 // FIX: Added 'EMPTY' to allow for empty tiles after matches.
 export type TokenType = 'HMSTR' | 'USDT' | 'NOT' | 'DOGS' | 'TON' | 'ELZR' | 'EMPTY';
 
@@ -8,6 +9,20 @@ export interface Tile {
   y: number;
   // FIX: Added optional isMatched property to align with its usage in matchLogic.ts without breaking other components.
   isMatched?: boolean; 
+}
+
+export type TabType = 'HOME' | 'TASKS' | 'SHOP' | 'FRENS' | 'WALLET';
+
+export interface User {
+  id: number;
+  username: string;
+  firstName: string;
+}
+
+export interface Fren {
+  id: number;
+  name: string;
+  score: number;
 }
 
 export interface GameStoreState {
@@ -23,11 +38,32 @@ export interface GameStoreState {
   walletBalance: number;
   lastMatchedPositions: { x: number, y: number }[]; // For particle effects
   
+  // Navigation
+  activeTab: TabType;
+  
+  // Boosters
+  boosters: {
+    bomb: number;
+    shuffle: number;
+    extraMoves: number;
+  };
+
+  // User Data
+  user: User | null;
+  frens: Fren[];
+  
   // Actions
   initGame: (level?: number) => void;
   startGame: (level: number) => void;
   selectTile: (id: string) => void;
   loadProgress: () => Promise<void>;
+  setActiveTab: (tab: TabType) => void;
+  initUser: () => void;
+  claimDailyReward: () => void;
+  lastRewardClaimedDate: string | null;
+  
+  // Shop Actions
+  buyBooster: (type: 'bomb' | 'shuffle' | 'extraMoves', price: number) => void;
 }
 
 export const TOKEN_TYPES: TokenType[] = ['HMSTR', 'USDT', 'NOT', 'DOGS', 'TON', 'ELZR'];
