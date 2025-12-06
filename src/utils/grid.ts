@@ -11,7 +11,7 @@ import { GRID_W, GRID_H } from '../types';
  */
 export const getPos = (x: number, y: number): [number, number, number] => {
   // Spacing optimized for 6 columns width on mobile
-  const spacing = 1.00; 
+  const spacing = 0.95; 
   const xOffset = (GRID_W * spacing) / 2 - 0.5; // Centering the grid horizontally (6 cols)
   const yOffset = (GRID_H * spacing) / 2 - 0.5; // Centering the grid vertically (9 rows)
   return [(x * spacing) - xOffset, (y * spacing) - yOffset, 0];

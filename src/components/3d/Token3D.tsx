@@ -1,10 +1,10 @@
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { useSpring, animated, config } from '@react-spring/three';
-import { Text, Cylinder, Float, Outlines } from '@react-three/drei';
+import { Cylinder, Float, Outlines, useTexture, Circle } from '@react-three/drei';
 import { TokenType, Tile, TOKEN_COLORS } from '../../types';
-import * as THREE from 'three';
 import { getPos } from '../../utils/grid';
+import * as THREE from 'three';
 
 interface Props {
   data: Tile;
@@ -12,18 +12,19 @@ interface Props {
   onClick: () => void;
 }
 
-const LABELS: Record<TokenType, string> = {
-  HMSTR: '🐹',
-  USDT: '$',
-  NOT: 'NOT',
-  DOGS: '🐶',
-  TON: '💎',
-  ELZR: '▲',
-  EMPTY: ''
+// URL-urile furnizate pentru texturi
+const TEXTURE_URLS = {
+  HMSTR: 'https://token.hamsterkombatgame.io/token/icon.png',
+  USDT: 'https://tether.to/images/logoCircle.png',
+  NOT: 'https://cdn.joincommunity.xyz/clicker/not_logo.png',
+  DOGS: 'https://cdn.dogs.dev/dogs.png',
+  TON: 'https://raw.githubusercontent.com/mingircioglu/minterjson/refs/heads/main/ton.svg',
+  ELZR: 'https://raw.githubusercontent.com/Iulian85/eliezer-token/main/ELZR.png',
+  // Fallback transparent pentru EMPTY sau tipuri necunoscute
+  EMPTY: '', 
 };
 
 const Token3D: React.FC<Props> = ({ data, selected, onClick }) => {
-  // Guard clause for empty tiles (destroyed)
   if (data.type === 'EMPTY') return null;
 
   const [targetX, targetY, targetZ] = getPos(data.x, data.y);
@@ -37,6 +38,18 @@ const Token3D: React.FC<Props> = ({ data, selected, onClick }) => {
 
   const color = TOKEN_COLORS[data.type] || '#ffffff';
 
+  // Încărcăm textura specifică acestui token
+  // Nota: useTexture cacheuiește automat, deci nu se descarcă de 100 de ori
+  const texture = useTexture(TEXTURE_URLS[data.type as keyof typeof TEXTURE_URLS]);
+  
+  // Optimizare textură
+  useMemo(() => {
+    if (texture) {
+        texture.anisotropy = 16;
+        texture.colorSpace = THREE.SRGBColorSpace;
+    }
+  }, [texture]);
+
   return (
     <animated.group
       position={position as any}
@@ -49,35 +62,34 @@ const Token3D: React.FC<Props> = ({ data, selected, onClick }) => {
     >
       <Float speed={2} rotationIntensity={0} floatIntensity={0.1}>
         <group>
-          {/* Increased radius to 0.42 since we have 6 cols now, fits better */}
+          {/* Corpul Monezii */}
           <Cylinder args={[0.42, 0.42, 0.15, 32]}>
             <meshStandardMaterial
               color={color}
               metalness={0.8}
               roughness={0.3}
               emissive={selected ? color : '#000'}
-              emissiveIntensity={selected ? 0.5 : 0}
+              emissiveIntensity={selected ? 0.3 : 0}
             />
             <Outlines thickness={0.02} color={selected ? 'white' : 'black'} />
           </Cylinder>
           
-          {/* Face Detail (Rim) */}
-          <Cylinder args={[0.37, 0.37, 0.16, 32]}>
-             <meshStandardMaterial color={color} metalness={0.7} roughness={0.5} />
-          </Cylinder>
+          {/* Imaginea (Decal/Texture) pe fața monezii */}
+          {/* Plasăm un cerc puțin deasupra (y=0.08) pentru a evita Z-fighting */}
+          <Circle args={[0.35, 32]} position={[0, 0.08, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+             <meshBasicMaterial 
+                map={texture} 
+                transparent 
+                opacity={1} 
+                color="white"
+             />
+          </Circle>
 
-          {/* Text Symbol */}
-          <Text
-            position={[0, 0.1, 0]}
-            rotation={[-Math.PI / 2, 0, 0]}
-            fontSize={0.38}
-            fontWeight={800}
-            color={data.type === 'DOGS' || data.type === 'USDT' ? 'black' : 'white'}
-            anchorX="center"
-            anchorY="middle"
-          >
-            {LABELS[data.type]}
-          </Text>
+          {/* Spate Monedă (pentru când se rotește la selecție) */}
+          <Circle args={[0.35, 32]} position={[0, -0.08, 0]} rotation={[Math.PI / 2, 0, 0]}>
+             <meshStandardMaterial color={color} metalness={0.8} roughness={0.3} />
+          </Circle>
+
         </group>
       </Float>
     </animated.group>
