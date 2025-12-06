@@ -14,11 +14,13 @@ function App() {
   }, []);
 
   return (
-    <div className="relative w-full h-screen bg-eliezer-bg">
+    <div className="relative w-full h-screen bg-eliezer-bg overflow-hidden">
       <Canvas 
         shadows 
-        camera={{ position: [0, 0, 14], fov: 45 }}
-        dpr={[1, 2]} // Quality scaling
+        // Moved camera back (z: 17) and narrowed FOV (38) to fit the tall grid perfectly between UI elements
+        camera={{ position: [0, 0, 17], fov: 38 }}
+        dpr={[1, 2]} 
+        className="touch-none"
       >
         <GameScene />
       </Canvas>

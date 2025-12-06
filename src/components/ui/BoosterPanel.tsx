@@ -8,47 +8,51 @@ export default function BoosterPanel() {
   if (gameState !== 'PLAYING') return null;
 
   return (
-    <div className="absolute bottom-4 left-0 w-full flex justify-center items-center gap-4 z-20 pointer-events-auto px-4">
+    <div className="absolute bottom-6 left-0 w-full flex justify-center items-end z-20 pointer-events-auto px-4">
       
-      {/* Bomb Booster */}
-      <button
-        onClick={() => activateBooster('bomb')}
-        className={`relative flex flex-col items-center justify-center w-16 h-16 rounded-2xl border-2 transition-all active:scale-95 shadow-xl ${
-          activeBooster === 'bomb' 
-            ? 'bg-red-900/90 border-red-400 shadow-[0_0_20px_rgba(248,113,113,0.6)]' 
-            : 'bg-slate-900/80 border-white/10 hover:border-white/30'
-        }`}
-      >
-        <div className="text-2xl mb-1">💣</div>
-        <div className="text-[10px] font-bold text-white uppercase">Bomb</div>
-        <div className="absolute -top-2 -right-2 w-6 h-6 bg-eliezer-gold text-black font-black text-xs rounded-full flex items-center justify-center border border-white">
-            {boosters.bomb}
-        </div>
-      </button>
+      {/* Glass Dock Container */}
+      <div className="bg-slate-900/60 backdrop-blur-md border border-white/10 rounded-3xl p-2 flex gap-3 shadow-2xl">
+          
+          {/* Bomb Booster */}
+          <button
+            onClick={() => activateBooster('bomb')}
+            className={`relative flex flex-col items-center justify-center w-14 h-14 rounded-2xl border transition-all active:scale-95 ${
+              activeBooster === 'bomb' 
+                ? 'bg-red-500/20 border-red-400 shadow-[0_0_15px_rgba(248,113,113,0.4)]' 
+                : 'bg-white/5 border-white/5 hover:bg-white/10'
+            }`}
+          >
+            <div className="text-xl mb-0.5">💣</div>
+            <div className="text-[9px] font-bold text-white uppercase tracking-wide">Bomb</div>
+            <div className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-eliezer-gold text-black font-black text-[10px] rounded-full flex items-center justify-center border border-white shadow-sm">
+                {boosters.bomb}
+            </div>
+          </button>
 
-      {/* Shuffle Booster */}
-      <button
-        onClick={() => activateBooster('shuffle')}
-        className="relative flex flex-col items-center justify-center w-16 h-16 rounded-2xl border-2 border-white/10 bg-slate-900/80 hover:border-white/30 transition-all active:scale-95 shadow-xl"
-      >
-        <div className="text-2xl mb-1">🔀</div>
-        <div className="text-[10px] font-bold text-white uppercase">Shuffle</div>
-        <div className="absolute -top-2 -right-2 w-6 h-6 bg-eliezer-gold text-black font-black text-xs rounded-full flex items-center justify-center border border-white">
-            {boosters.shuffle}
-        </div>
-      </button>
+          {/* Shuffle Booster */}
+          <button
+            onClick={() => activateBooster('shuffle')}
+            className="relative flex flex-col items-center justify-center w-14 h-14 rounded-2xl border border-white/5 bg-white/5 hover:bg-white/10 transition-all active:scale-95"
+          >
+            <div className="text-xl mb-0.5">🔀</div>
+            <div className="text-[9px] font-bold text-white uppercase tracking-wide">Shuffle</div>
+            <div className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-eliezer-gold text-black font-black text-[10px] rounded-full flex items-center justify-center border border-white shadow-sm">
+                {boosters.shuffle}
+            </div>
+          </button>
 
-      {/* Extra Moves Booster */}
-      <button
-        onClick={() => activateBooster('extraMoves')}
-        className="relative flex flex-col items-center justify-center w-16 h-16 rounded-2xl border-2 border-white/10 bg-slate-900/80 hover:border-white/30 transition-all active:scale-95 shadow-xl"
-      >
-        <div className="text-2xl mb-1">⚡</div>
-        <div className="text-[10px] font-bold text-white uppercase">+5 Moves</div>
-        <div className="absolute -top-2 -right-2 w-6 h-6 bg-eliezer-gold text-black font-black text-xs rounded-full flex items-center justify-center border border-white">
-            {boosters.extraMoves}
-        </div>
-      </button>
+          {/* Extra Moves Booster */}
+          <button
+            onClick={() => activateBooster('extraMoves')}
+            className="relative flex flex-col items-center justify-center w-14 h-14 rounded-2xl border border-white/5 bg-white/5 hover:bg-white/10 transition-all active:scale-95"
+          >
+            <div className="text-xl mb-0.5">⚡</div>
+            <div className="text-[9px] font-bold text-white uppercase tracking-wide">+5 Move</div>
+            <div className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-eliezer-gold text-black font-black text-[10px] rounded-full flex items-center justify-center border border-white shadow-sm">
+                {boosters.extraMoves}
+            </div>
+          </button>
+      </div>
 
     </div>
   );

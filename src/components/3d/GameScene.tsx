@@ -12,16 +12,22 @@ const ExplosionEffect = () => {
     const bombExplosionPosition = useGameStore(s => s.bombExplosionPosition);
     const meshRef = useRef<THREE.Mesh>(null);
     const scaleRef = useRef(0);
+    const lightRef = useRef<THREE.PointLight>(null);
 
     useFrame((state, delta) => {
         if (bombExplosionPosition && meshRef.current) {
-            scaleRef.current += delta * 25; // Fast expansion speed
+            scaleRef.current += delta * 25; 
             const scale = scaleRef.current;
             meshRef.current.scale.set(scale, scale, scale);
             
-            // Fade out based on scale
             const material = meshRef.current.material as THREE.MeshBasicMaterial;
             material.opacity = Math.max(0, 1 - scale / 6);
+
+            // Flash light
+            if (lightRef.current) {
+                lightRef.current.intensity = Math.max(0, 20 - scale * 3);
+            }
+
         } else {
             scaleRef.current = 0;
         }
@@ -33,15 +39,10 @@ const ExplosionEffect = () => {
 
     return (
         <group position={[x, y, 0.5]}>
-             {/* Dynamic Flash Light */}
-             <pointLight distance={10} intensity={20} color="#ffaa00" decay={1} />
-             
-             {/* Expanding Shockwave Ring */}
+             <pointLight ref={lightRef} distance={10} intensity={20} color="#ffaa00" decay={1} />
              <Torus ref={meshRef} args={[0.8, 0.15, 16, 32]} rotation={[Math.PI/2, 0, 0]}>
                 <meshBasicMaterial color="#FF4500" transparent opacity={1} toneMapped={false} />
              </Torus>
-             
-             {/* Explosion Particles */}
              <Sparkles count={80} scale={6} size={12} speed={4} color="#FFD700" />
         </group>
     );
@@ -57,17 +58,15 @@ export default function GameScene() {
     <>
       <color attach="background" args={['#1a0033']} />
       
-      {/* Scene Lighting */}
       <ambientLight intensity={0.5} />
       <directionalLight position={[10, 10, 5]} intensity={1.5} castShadow />
       <pointLight position={[-10, -10, -5]} intensity={0.5} color="#d946ef" />
 
-      {/* Environment Background */}
       <Stars radius={100} depth={50} count={5000} factor={4} saturation={0} fade />
       <Sparkles count={50} scale={10} size={2} speed={0.4} opacity={0.2} color="#FFD700" />
 
-      {/* Game Board */}
-      <group position={[0, -0.5, 0]}>
+      {/* Moved Grid UP (y: 0.8) to make room for bottom UI */}
+      <group position={[0, 0.8, 0]}>
         {grid.map((tile) => (
           <Token3D
             key={tile.id}
@@ -76,25 +75,23 @@ export default function GameScene() {
             onClick={() => selectTile(tile.id)}
           />
         ))}
+        
+        {/* Helper sparkles for matches inside the grid group to maintain relative position */}
+        {lastMatchedPositions.map((pos, i) => (
+            <Sparkles
+            key={`sparkle-${i}`}
+            position={[...getPos(pos.x, pos.y).slice(0, 2) as [number, number], 0.2]}
+            count={30}
+            scale={1.5}
+            size={6}
+            speed={1.5}
+            color="#F59E0B"
+            />
+        ))}
+
+        <ExplosionEffect />
       </group>
 
-      {/* Match Particle Effects */}
-      {lastMatchedPositions.map((pos, i) => (
-        <Sparkles
-          key={`sparkle-${i}`}
-          position={[...getPos(pos.x, pos.y).slice(0, 2) as [number, number], 0.2]}
-          count={30}
-          scale={1.5}
-          size={6}
-          speed={1.5}
-          color="#F59E0B"
-        />
-      ))}
-
-      {/* Bomb Booster Explosion Visuals */}
-      <ExplosionEffect />
-
-      {/* Post Processing Effects */}
       <Suspense fallback={null}>
         <EffectComposer enableNormalPass={false}>
           <Bloom luminanceThreshold={1} mipmapBlur intensity={1.5} radius={0.5} />
