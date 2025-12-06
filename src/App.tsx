@@ -17,8 +17,8 @@ function App() {
     <div className="relative w-full h-screen bg-eliezer-bg overflow-hidden">
       <Canvas 
         shadows 
-        // Camera moved back to Z: 26 to fully fit the 9-row grid on mobile screens
-        camera={{ position: [0, 0, 26], fov: 35 }}
+        // Moved camera closer (Z: 19.5) for a more immersive, zoomed-in view
+        camera={{ position: [0, 0, 19.5], fov: 38 }}
         dpr={[1, 2]} 
         className="touch-none"
       >

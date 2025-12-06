@@ -10,9 +10,9 @@ import { GRID_W, GRID_H } from '../types';
  * @returns An array representing the [x, y, z] position in 3D space.
  */
 export const getPos = (x: number, y: number): [number, number, number] => {
-  // Spacing reduced to 0.85 to make the 9-row grid compact enough for mobile
-  const spacing = 0.85; 
-  const xOffset = (GRID_W * spacing) / 2 - 0.5; // Centering the grid horizontally
-  const yOffset = (GRID_H * spacing) / 2 - 0.5; // Centering the grid vertically
+  // Spacing optimized for 6 columns width on mobile
+  const spacing = 0.95; 
+  const xOffset = (GRID_W * spacing) / 2 - 0.5; // Centering the grid horizontally (6 cols)
+  const yOffset = (GRID_H * spacing) / 2 - 0.5; // Centering the grid vertically (9 rows)
   return [(x * spacing) - xOffset, (y * spacing) - yOffset, 0];
 };

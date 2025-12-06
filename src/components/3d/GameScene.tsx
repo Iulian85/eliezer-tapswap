@@ -1,6 +1,6 @@
 
 import { Suspense, useRef } from 'react';
-import { Stars, Sparkles, Torus, Html } from '@react-three/drei';
+import { Stars, Sparkles, Torus } from '@react-three/drei';
 import { EffectComposer, Bloom } from '@react-three/postprocessing';
 import { useFrame } from '@react-three/fiber';
 import { useGameStore } from '../../store/useGameStore';
@@ -48,26 +48,11 @@ const ExplosionEffect = () => {
     );
 };
 
-const Loader = () => (
-    <Html center>
-        <div className="text-white font-bold text-xl animate-pulse">Loading Assets...</div>
-    </Html>
-);
-
 export default function GameScene() {
   const grid = useGameStore(s => s.grid);
   const selectedId = useGameStore(s => s.selectedId);
   const selectTile = useGameStore(s => s.selectTile);
   const lastMatchedPositions = useGameStore(s => s.lastMatchedPositions);
-  const starsRef = useRef<any>(null);
-
-  useFrame(({ mouse }) => {
-    if (starsRef.current) {
-        // Subtle parallax based on mouse position
-        starsRef.current.rotation.x = mouse.y * 0.02;
-        starsRef.current.rotation.y = mouse.x * 0.02;
-    }
-  });
 
   return (
     <>
@@ -77,23 +62,19 @@ export default function GameScene() {
       <directionalLight position={[10, 10, 5]} intensity={1.5} castShadow />
       <pointLight position={[-10, -10, -5]} intensity={0.5} color="#d946ef" />
 
-      <group ref={starsRef}>
-        <Stars radius={100} depth={50} count={5000} factor={4} saturation={0} fade />
-      </group>
+      <Stars radius={100} depth={50} count={5000} factor={4} saturation={0} fade />
       <Sparkles count={50} scale={10} size={2} speed={0.4} opacity={0.2} color="#FFD700" />
 
       {/* Y=0.1 centers the grid vertically between the Level Bar and Bottom Menu */}
       <group position={[0, 0.1, 0]}>
-        <Suspense fallback={<Loader />}>
-            {grid.map((tile) => (
-            <Token3D
-                key={tile.id}
-                data={tile}
-                selected={selectedId === tile.id}
-                onClick={() => selectTile(tile.id)}
-            />
-            ))}
-        </Suspense>
+        {grid.map((tile) => (
+          <Token3D
+            key={tile.id}
+            data={tile}
+            selected={selectedId === tile.id}
+            onClick={() => selectTile(tile.id)}
+          />
+        ))}
         
         {/* Helper sparkles for matches inside the grid group to maintain relative position */}
         {lastMatchedPositions.map((pos, i) => (
