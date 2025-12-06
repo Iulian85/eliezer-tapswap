@@ -2,14 +2,35 @@
 import { useGameStore } from '../../store/useGameStore';
 import Navigation from './Navigation';
 import { ShopTab, TasksTab, FrensTab, WalletTab } from './TabViews';
+import { showAd } from '../../utils/adsgram';
+import { useState } from 'react';
 
 export default function Menu() {
   const { gameState, initGame, activeTab, claimDailyReward, lastRewardClaimedDate, walletBalance, user } = useGameStore();
   const today = new Date().toDateString();
   const isRewardAvailable = lastRewardClaimedDate !== today;
+  const [isLoadingAd, setIsLoadingAd] = useState(false);
 
   // Don't show menu overlay when playing
   if (gameState === 'PLAYING') return null;
+
+  const handleStartGame = async () => {
+    if (isLoadingAd) return;
+    setIsLoadingAd(true);
+    // Show Ad before starting game
+    await showAd();
+    setIsLoadingAd(false);
+    initGame(1);
+  };
+
+  const handleClaimReward = async () => {
+    if (isLoadingAd || !isRewardAvailable) return;
+    setIsLoadingAd(true);
+    // Show Ad before claiming reward
+    await showAd();
+    setIsLoadingAd(false);
+    claimDailyReward();
+  };
 
   // Content Renderer based on Active Tab
   const renderContent = () => {
@@ -36,22 +57,31 @@ export default function Menu() {
 
                     <div className="space-y-4">
                         <button
-                            onClick={() => initGame(1)}
+                            onClick={handleStartGame}
+                            disabled={isLoadingAd}
                             className="w-full py-5 bg-gradient-to-r from-eliezer-purple to-purple-700 rounded-2xl font-black text-xl text-white shadow-xl shadow-purple-900/30 active:scale-95 transition-all hover:brightness-110 flex items-center justify-center gap-2"
                         >
-                            <span>▶</span> START GAME
+                            {isLoadingAd ? (
+                                <span>⌛ Loading Ad...</span>
+                            ) : (
+                                <><span>▶</span> START GAME</>
+                            )}
                         </button>
 
                         <button
-                            onClick={claimDailyReward}
-                            disabled={!isRewardAvailable}
+                            onClick={handleClaimReward}
+                            disabled={!isRewardAvailable || isLoadingAd}
                             className={`w-full py-4 rounded-xl font-bold text-white shadow-lg transition-all flex items-center justify-center gap-2 ${
                                 isRewardAvailable 
                                 ? 'bg-gradient-to-r from-green-600 to-emerald-600 active:scale-95 hover:brightness-110' 
                                 : 'bg-slate-700 opacity-50 cursor-not-allowed'
                             }`}
                         >
-                            <span>🎁</span> {isRewardAvailable ? 'CLAIM DAILY REWARD (+100)' : 'REWARD CLAIMED'}
+                             {isLoadingAd ? (
+                                <span>⌛ Loading Ad...</span>
+                            ) : (
+                                <><span>🎁</span> {isRewardAvailable ? 'CLAIM DAILY REWARD (+100)' : 'REWARD CLAIMED'}</>
+                            )}
                         </button>
                     </div>
                 </div>
