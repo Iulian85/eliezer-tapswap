@@ -76,8 +76,11 @@ export default function GameScene() {
       </group>
       <Sparkles count={50} scale={10} size={2} speed={0.4} opacity={0.2} color="#FFD700" />
 
-      {/* Y=0.1 centers the grid vertically between the Level Bar and Bottom Menu */}
-      <group position={[0, 0.1, 0]}>
+      {/* 
+         SHIFTED DOWN to Y = -1.5 
+         This clears space for the Top Header (Back + Status)
+      */}
+      <group position={[0, -1.5, 0]}>
         <Suspense fallback={null}>
             {grid.map((tile) => (
             <Token3D
