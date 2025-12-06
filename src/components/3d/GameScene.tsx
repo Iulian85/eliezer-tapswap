@@ -66,7 +66,7 @@ export default function GameScene() {
       <Sparkles count={50} scale={10} size={2} speed={0.4} opacity={0.2} color="#FFD700" />
 
       {/* Y=0.1 centers the grid vertically between the Level Bar and Bottom Menu */}
-      <group position={[0, 0.001, 0]}>
+      <group position={[0, 0.0001, 0]}>
         {grid.map((tile) => (
           <Token3D
             key={tile.id}
