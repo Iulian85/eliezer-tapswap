@@ -58,6 +58,7 @@ export interface GameStoreState {
   // Actions
   initGame: (level?: number) => void;
   startGame: (level: number) => void;
+  quitGame: () => void;
   selectTile: (id: string) => void;
   loadProgress: () => Promise<void>;
   setActiveTab: (tab: TabType) => void;
@@ -83,5 +84,6 @@ export const TOKEN_COLORS: Record<TokenType, string> = {
   EMPTY: 'transparent'
 };
 
-export const GRID_W = 8;
+// STRICT REQUIREMENT: 6 Columns, 9 Rows
+export const GRID_W = 6;
 export const GRID_H = 9;

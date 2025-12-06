@@ -154,6 +154,10 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
     get().initGame(level);
   },
 
+  quitGame: () => {
+    set({ gameState: 'MENU', activeTab: 'HOME' });
+  },
+
   activateBooster: (type: BoosterType) => {
     const { boosters, moves, activeBooster, grid } = get();
     

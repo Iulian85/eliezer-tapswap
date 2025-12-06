@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { useSpring, animated, config } from '@react-spring/three';
 import { Text, Cylinder, Float, Outlines } from '@react-three/drei';
@@ -48,8 +49,8 @@ const Token3D: React.FC<Props> = ({ data, selected, onClick }) => {
     >
       <Float speed={2} rotationIntensity={0} floatIntensity={0.1}>
         <group>
-          {/* Reduced Cylinder radius from 0.45 to 0.40 to fit new spacing */}
-          <Cylinder args={[0.40, 0.40, 0.15, 32]}>
+          {/* Increased radius to 0.42 since we have 6 cols now, fits better */}
+          <Cylinder args={[0.42, 0.42, 0.15, 32]}>
             <meshStandardMaterial
               color={color}
               metalness={0.8}
@@ -61,15 +62,15 @@ const Token3D: React.FC<Props> = ({ data, selected, onClick }) => {
           </Cylinder>
           
           {/* Face Detail (Rim) */}
-          <Cylinder args={[0.35, 0.35, 0.16, 32]}>
+          <Cylinder args={[0.37, 0.37, 0.16, 32]}>
              <meshStandardMaterial color={color} metalness={0.7} roughness={0.5} />
           </Cylinder>
 
-          {/* Text Symbol - Reduced font size */}
+          {/* Text Symbol */}
           <Text
             position={[0, 0.1, 0]}
             rotation={[-Math.PI / 2, 0, 0]}
-            fontSize={0.35}
+            fontSize={0.38}
             fontWeight={800}
             color={data.type === 'DOGS' || data.type === 'USDT' ? 'black' : 'white'}
             anchorX="center"
