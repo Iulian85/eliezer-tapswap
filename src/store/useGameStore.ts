@@ -85,6 +85,11 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
     hapticFeedback('light');
   },
 
+  quitGame: () => {
+    set({ gameState: 'MENU', activeTab: 'HOME' });
+    hapticFeedback('medium');
+  },
+
   initUser: () => {
     const user = tg.initDataUnsafe?.user;
     if (user) {
@@ -228,12 +233,6 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
         // Deduct Booster
         set({ boosters: { ...boosters, bomb: boosters.bomb - 1 } });
         
-        // Proceed to cascade logic similar to match
-        // ... reuse match logic below ...
-        // We'll insert the matches into the flow
-        // Need to refactor flow slightly to handle 'matches' passed in
-        // For simplicity, I'll copy the cascade logic here
-        
         const matchScore = matches.size * 20; // Bonus points for bomb
         
         // Set matched for particle effects
@@ -259,10 +258,7 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
         set({ grid: nextGrid, score: get().score + matchScore });
         await new Promise(r => setTimeout(r, 400));
         
-        // Check for new matches resulting from cascade
-        // This is a simplified recursion - ideally refactor common cascade loop
         set({ isProcessing: false });
-        // Trigger selectTile again? No, just end turn logic check
         return; 
     }
     // --- End Bomb Logic ---

@@ -65,8 +65,8 @@ export default function GameScene() {
       <Stars radius={100} depth={50} count={5000} factor={4} saturation={0} fade />
       <Sparkles count={50} scale={10} size={2} speed={0.4} opacity={0.2} color="#FFD700" />
 
-      {/* Moved Grid DOWN (-0.5) to clear the top HUD and allow room for bottom Boosters */}
-      <group position={[0, -0.5, 0]}>
+      {/* Moved Grid UP to 0.8 to visually clear the bottom menu */}
+      <group position={[0, 0.8, 0]}>
         {grid.map((tile) => (
           <Token3D
             key={tile.id}

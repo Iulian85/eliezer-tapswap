@@ -64,6 +64,7 @@ export interface GameStoreState {
   initUser: () => void;
   claimDailyReward: () => void;
   lastRewardClaimedDate: string | null;
+  quitGame: () => void; // New action for Back button
   
   // Booster Actions
   activateBooster: (type: BoosterType) => void;
@@ -83,5 +84,6 @@ export const TOKEN_COLORS: Record<TokenType, string> = {
   EMPTY: 'transparent'
 };
 
-export const GRID_W = 8;
-export const GRID_H = 9;
+// FIXED: Grid dimensions set to 6x7 as requested
+export const GRID_W = 6;
+export const GRID_H = 7;
