@@ -83,5 +83,6 @@ export const TOKEN_COLORS: Record<TokenType, string> = {
   EMPTY: 'transparent'
 };
 
-export const GRID_W = 8;
-export const GRID_H = 9;
+// Adjusted to 6x7 for optimal mobile fit
+export const GRID_W = 6;
+export const GRID_H = 7;
