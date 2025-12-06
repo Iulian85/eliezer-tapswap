@@ -18,7 +18,7 @@ function App() {
       <Canvas 
         shadows 
         // Moved camera closer (Z: 19.5) for a more immersive, zoomed-in view
-        camera={{ position: [0, 0,19], fov: 62 }}
+        camera={{ position: [0, 0,19], fov: 40 }}
         dpr={[1, 2]} 
         className="touch-none"
       >
