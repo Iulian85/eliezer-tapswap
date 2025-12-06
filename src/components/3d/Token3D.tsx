@@ -77,7 +77,7 @@ const Token3D: React.FC<Props> = ({ data, selected, onClick }) => {
           </Cylinder>
           
           {/* Face Texture */}
-          <Circle args={[0.35, 32]} position={[0, 0.08, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          <Circle args={[0.35, 32]} position={[0, 0.1, 0]} rotation={[-Math.PI / 2, 0, 0]}>
              <meshBasicMaterial 
                 map={texture} 
                 transparent 
