@@ -68,7 +68,7 @@ const Token3D: React.FC<Props> = ({ data, selected, onClick }) => {
 
           {/* Text Symbol */}
           <Text
-            position={[0, 0.9, 0]}
+            position={[0, 0.6, 0]}
             rotation={[-Math.PI / 2, 0, 0]}
             fontSize={0.38}
             fontWeight={800}
