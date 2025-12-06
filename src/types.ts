@@ -86,4 +86,4 @@ export const TOKEN_COLORS: Record<TokenType, string> = {
 
 // STRICT REQUIREMENT: 6 Columns, 9 Rows
 export const GRID_W = 6;
-export const GRID_H = 8;
+export const GRID_H = 9;
