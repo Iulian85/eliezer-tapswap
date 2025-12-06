@@ -93,7 +93,7 @@ export default function GameScene() {
       </group>
 
       <Suspense fallback={null}>
-        <EffectComposer enableNormalPass={false}>
+        <EffectComposer disableNormalPass={false}>
           <Bloom luminanceThreshold={1} mipmapBlur intensity={1.5} radius={0.5} />
         </EffectComposer>
       </Suspense>
