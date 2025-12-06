@@ -17,8 +17,8 @@ function App() {
     <div className="relative w-full h-screen bg-eliezer-bg overflow-hidden">
       <Canvas 
         shadows 
-        // Moved camera back (z: 17) and narrowed FOV (38) to fit the tall grid perfectly between UI elements
-        camera={{ position: [0, 0, 17], fov: 38 }}
+        // Moved camera back to Z: 20 to fit 8 columns on mobile portrait
+        camera={{ position: [0, 0, 20], fov: 38 }}
         dpr={[1, 2]} 
         className="touch-none"
       >

@@ -8,7 +8,8 @@
  * @returns An array representing the [x, y, z] position in 3D space.
  */
 export const getPos = (x: number, y: number): [number, number, number] => {
-  const spacing = 1.1;
+  // Reduced spacing from 1.1 to 0.92 to fit 8 columns on mobile screens
+  const spacing = 0.92; 
   const xOffset = (8 * spacing) / 2 - 0.5; // Centering the grid horizontally
   const yOffset = (9 * spacing) / 2 - 0.5; // Centering the grid vertically
   return [(x * spacing) - xOffset, (y * spacing) - yOffset, 0];
