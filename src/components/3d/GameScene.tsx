@@ -65,8 +65,8 @@ export default function GameScene() {
       <Stars radius={100} depth={50} count={5000} factor={4} saturation={0} fade />
       <Sparkles count={50} scale={10} size={2} speed={0.4} opacity={0.2} color="#FFD700" />
 
-      {/* Y=0.4 lifts the 9-row grid slightly up to clear the bottom boosters */}
-      <group position={[0, 0.4, 0]}>
+      {/* Y=0.1 centers the grid vertically between the Level Bar and Bottom Menu */}
+      <group position={[0, 0.1, 0]}>
         {grid.map((tile) => (
           <Token3D
             key={tile.id}
