@@ -83,7 +83,5 @@ export const TOKEN_COLORS: Record<TokenType, string> = {
   EMPTY: 'transparent'
 };
 
-// CHANGED: Reduced to 6 columns for better mobile portrait fit
-export const GRID_W = 6;
-// CHANGED: Reduced to 8 rows to balance the aspect ratio
-export const GRID_H = 8;
+export const GRID_W = 8;
+export const GRID_H = 9;
