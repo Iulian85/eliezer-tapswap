@@ -17,8 +17,8 @@ function App() {
     <div className="relative w-full h-screen bg-eliezer-bg overflow-hidden">
       <Canvas 
         shadows 
-        // Moved camera back to Z: 20 to fit 8 columns on mobile portrait
-        camera={{ position: [0, 0, 20], fov: 38 }}
+        // Moved camera closer (15) since the grid is now narrower (6 cols), making tokens look bigger
+        camera={{ position: [0, 0, 15], fov: 40 }}
         dpr={[1, 2]} 
         className="touch-none"
       >
