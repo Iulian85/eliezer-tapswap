@@ -22,7 +22,6 @@ const TEXTURE_URLS = {
   DOGS: 'https://cdn.dogs.dev/dogs.png',
   TON: 'https://raw.githubusercontent.com/mingircioglu/minterjson/refs/heads/main/ton.svg',
   ELZR: 'https://raw.githubusercontent.com/Iulian85/eliezer-token/main/ELZR.png',
-  EMPTY: FALLBACK_IMG,
 };
 
 const Token3D: React.FC<Props> = ({ data, selected, onClick }) => {
