@@ -66,7 +66,7 @@ export default function GameScene() {
       <Sparkles count={50} scale={10} size={2} speed={0.4} opacity={0.2} color="#FFD700" />
 
       {/* Y=0.4 lifts the 9-row grid slightly up to clear the bottom boosters */}
-      <group position={[0, 1.1, 0]}>
+      <group position={[0, 0.4, 0]}>
         {grid.map((tile) => (
           <Token3D
             key={tile.id}

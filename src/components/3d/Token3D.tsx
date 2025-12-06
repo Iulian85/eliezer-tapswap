@@ -50,28 +50,28 @@ const Token3D: React.FC<Props> = ({ data, selected, onClick }) => {
       <Float speed={2} rotationIntensity={0} floatIntensity={0.1}>
         <group>
           {/* Increased radius to 0.42 since we have 6 cols now, fits better */}
-          <Cylinder args={[0.49, 0.49, 0.15, 32]}>
+          <Cylinder args={[0.42, 0.42, 0.15, 32]}>
             <meshStandardMaterial
               color={color}
-              metalness={0.9}
-              roughness={0.2}
+              metalness={0.8}
+              roughness={0.3}
               emissive={selected ? color : '#000'}
-              emissiveIntensity={selected ? 0.7 : 0}
+              emissiveIntensity={selected ? 0.5 : 0}
             />
-            <Outlines thickness={0.025} color={selected ? 'white' : 'black'} />
+            <Outlines thickness={0.02} color={selected ? 'white' : 'black'} />
           </Cylinder>
           
           {/* Face Detail (Rim) */}
-          <Cylinder args={[0.44, 0.44, 0.16, 32]}>
-             <meshStandardMaterial color={color} metalness={0.8} roughness={0.4} />
+          <Cylinder args={[0.37, 0.37, 0.16, 32]}>
+             <meshStandardMaterial color={color} metalness={0.7} roughness={0.5} />
           </Cylinder>
 
           {/* Text Symbol */}
           <Text
-            position={[0, 0.11, 0]}
+            position={[0, 0.1, 0]}
             rotation={[-Math.PI / 2, 0, 0]}
-            fontSize={0.44}
-            fontWeight={900}
+            fontSize={0.38}
+            fontWeight={800}
             color={data.type === 'DOGS' || data.type === 'USDT' ? 'black' : 'white'}
             anchorX="center"
             anchorY="middle"
