@@ -12,34 +12,41 @@ declare global {
 }
 
 /**
- * Shows an Adsgram ad.
- * Returns true if the ad was shown/completed/skipped (flow should continue).
- * Returns true even on error to prevent blocking the user flow.
+ * Shows an Adsgram ad using the official integration.
+ * Relying strictly on the blockId "int-17151" to handle ad serving logic.
  */
 export const showAd = async (): Promise<boolean> => {
+  // 1. Check if script is loaded
   if (typeof window === 'undefined' || !window.Adsgram) {
-    console.warn('Adsgram script not loaded or running in non-browser env');
-    return true; // Fail safe: let user proceed
+    console.error('Adsgram script not loaded. Make sure <script src="https://adsgram.ai/js/adsgram.js"> is in index.html');
+    return true; // Fail safe: let user play
   }
 
   try {
-    const AdController = window.Adsgram.init({ blockId: "int-17151" });
+    // 2. Initialize strictly with your Block ID
+    const AdController = window.Adsgram.init({ 
+        blockId: "int-17151"
+    });
     
+    // 3. Show Ad and handle native events
     return new Promise((resolve) => {
       AdController.show()
-        .then(() => {
-          // Ad finished or skipped successfully
+        .then((result: any) => {
+          // Ad watched successfully (reward)
+          console.log('Adsgram: Ad completed', result);
           resolve(true);
         })
         .catch((result: any) => {
-          // Ad error (e.g. no fill, load error)
-          // We log it but resolve true so the game doesn't hang
-          console.warn('Adsgram error:', result);
+          // Ad skipped, error, or no fill
+          // We log the raw result from Adsgram so you can see exactly why it failed in console
+          console.log('Adsgram result:', result);
+          
+          // We resolve true to ensure the game doesn't freeze even if ad fails
           resolve(true);
         });
     });
   } catch (e) {
-    console.error('Adsgram init error:', e);
+    console.error('Adsgram critical error:', e);
     return true;
   }
 };
