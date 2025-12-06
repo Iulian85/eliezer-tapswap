@@ -1,6 +1,6 @@
 
 import { Suspense, useRef } from 'react';
-import { Stars, Sparkles, Torus } from '@react-three/drei';
+import { Stars, Sparkles, Torus, Html } from '@react-three/drei';
 import { EffectComposer, Bloom } from '@react-three/postprocessing';
 import { useFrame } from '@react-three/fiber';
 import { useGameStore } from '../../store/useGameStore';
@@ -48,6 +48,12 @@ const ExplosionEffect = () => {
     );
 };
 
+const Loader = () => (
+    <Html center>
+        <div className="text-white font-bold text-xl animate-pulse">Loading Assets...</div>
+    </Html>
+);
+
 export default function GameScene() {
   const grid = useGameStore(s => s.grid);
   const selectedId = useGameStore(s => s.selectedId);
@@ -76,12 +82,9 @@ export default function GameScene() {
       </group>
       <Sparkles count={50} scale={10} size={2} speed={0.4} opacity={0.2} color="#FFD700" />
 
-      {/* 
-         SHIFTED DOWN to Y = -1.5 
-         This clears space for the Top Header (Back + Status)
-      */}
-      <group position={[0, -1.5, 0]}>
-        <Suspense fallback={null}>
+      {/* Y=0.1 centers the grid vertically between the Level Bar and Bottom Menu */}
+      <group position={[0, 0.1, 0]}>
+        <Suspense fallback={<Loader />}>
             {grid.map((tile) => (
             <Token3D
                 key={tile.id}
