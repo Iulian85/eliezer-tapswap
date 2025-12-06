@@ -81,7 +81,6 @@ export const TOKEN_COLORS: Record<TokenType, string> = {
   DOGS: '#F3F4F6', // White
   TON: '#3B82F6',  // Blue
   ELZR: '#EAB308', // Gold
-  EMPTY: 'transparent'
 };
 
 // STRICT REQUIREMENT: 6 Columns, 9 Rows
