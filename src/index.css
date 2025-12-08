@@ -58,6 +58,38 @@ body {
     inset 0 3px 6px rgba(0, 0, 0, 0.1);
 }
 
+/* 3D Model Simulation for UI (The "Block" look) */
+.clay-model {
+  position: relative;
+  border-radius: 28px;
+  /* Thick bevel at bottom to simulate 3D height */
+  border-bottom: 6px solid rgba(0,0,0,0.05); 
+  box-shadow: 
+    0 15px 30px -5px rgba(0,0,30,0.15),
+    inset 0 3px 5px rgba(255,255,255,0.7),
+    inset 0 -3px 5px rgba(0,0,0,0.05);
+  transition: transform 0.2s;
+}
+
+.clay-model:active {
+  transform: translateY(4px);
+  border-bottom-width: 2px;
+  box-shadow: 
+    0 5px 15px -5px rgba(0,0,30,0.1),
+    inset 0 3px 5px rgba(255,255,255,0.7),
+    inset 0 -3px 5px rgba(0,0,0,0.05);
+}
+
+/* 3D Sphere Simulation */
+.clay-sphere {
+  border-radius: 50%;
+  background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0) 20%),
+              linear-gradient(135deg, var(--tw-gradient-from), var(--tw-gradient-to));
+  box-shadow: 
+    0 10px 20px -5px rgba(0,0,0,0.2),
+    inset 0 -5px 10px rgba(0,0,0,0.1);
+}
+
 /* Soft Icon Container */
 .icon-box-3d {
   background: linear-gradient(135deg, #ffffff 0%, #f0f4f8 100%);

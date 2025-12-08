@@ -202,7 +202,7 @@ export default function GameScene() {
 
       {/* Post Processing for that "Soft Dreamy" Look */}
       <Suspense fallback={null}>
-        <EffectComposer disableNormalPass>
+        <EffectComposer enableNormalPass={false}>
           {/* Subtle Bloom for the white highlights */}
           <Bloom luminanceThreshold={0.95} mipmapBlur intensity={0.4} radius={0.5} />
           {/* TiltShift for the miniature feeling - makes background elements look nice and blurred */}
