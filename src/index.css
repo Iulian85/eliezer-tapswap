@@ -1,19 +1,18 @@
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+@import url('https://fonts.googleapis.com/css2?family=Varela+Round&display=swap');
+
 body {
   margin: 0;
   padding: 0;
-  /* Deep Blue Studio Floor Base */
-  background: radial-gradient(circle at 50% 0%, #81D4FA 0%, #0288D1 100%);
+  background: linear-gradient(180deg, #A5C9FF 0%, #EBF4FF 100%); /* The Soft Periwinkle Gradient */
   background-attachment: fixed;
-  color: #1A237E; /* Factory Ink */
-  font-family: 'Inter', sans-serif;
+  color: #475569;
+  font-family: 'Varela Round', sans-serif; /* Soft rounded font */
   overflow: hidden;
   -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
 }
 
 #root {
@@ -21,26 +20,54 @@ body {
   height: 100vh;
 }
 
-/* Custom Scrollbar for Tasks/Frens */
-::-webkit-scrollbar {
-  width: 6px;
-}
-::-webkit-scrollbar-track {
-  background: rgba(255, 255, 255, 0.1);
-}
-::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.5);
-  border-radius: 10px;
+/* Glassmorphism Card Style - Matching the reference "Frosted" look */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.45);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 2px solid rgba(255, 255, 255, 0.6);
+  border-radius: 32px;
+  box-shadow: 0 20px 40px -10px rgba(165, 201, 255, 0.5);
 }
 
-/* Claymorphism Utility Class - The "Frosted Plastic" look */
-.clay-panel {
-  background: rgba(255, 255, 255, 0.65);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
-  border: 2px solid rgba(255, 255, 255, 0.8);
+.glass-pill {
+  background: rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  border-radius: 20px;
+}
+
+/* 3D Button Style (CSS Clay) */
+.btn-primary-3d {
+  background: linear-gradient(135deg, #FFB085 0%, #FF844B 100%);
+  color: white;
+  border-radius: 24px;
   box-shadow: 
-    0 20px 40px rgba(2, 136, 209, 0.15),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.5);
-  border-radius: 32px;
+    0 10px 20px rgba(255, 132, 75, 0.3),
+    inset 0 3px 6px rgba(255, 255, 255, 0.4),
+    inset 0 -3px 6px rgba(0, 0, 0, 0.05);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-primary-3d:active {
+  transform: scale(0.98) translateY(2px);
+  box-shadow: 
+    0 4px 10px rgba(255, 132, 75, 0.2),
+    inset 0 3px 6px rgba(0, 0, 0, 0.1);
+}
+
+/* Soft Icon Container */
+.icon-box-3d {
+  background: linear-gradient(135deg, #ffffff 0%, #f0f4f8 100%);
+  box-shadow: 
+    0 10px 20px rgba(165, 201, 255, 0.3),
+    inset 0 2px 4px rgba(255, 255, 255, 1);
+  border-radius: 24px;
+}
+
+/* Scrollbar hidden for cleaner UI */
+::-webkit-scrollbar {
+  display: none;
 }

@@ -1,4 +1,3 @@
-
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   content: [
@@ -8,43 +7,35 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        // The specific blue gradient from the reference (Light top, deep bottom)
-        'factory-blue-light': '#81D4FA', 
-        'factory-blue-main': '#4FC3F7',
-        'factory-blue-deep': '#0288D1',
+        // Reference Image Background: Periwinkle Blue to Soft White/Blue
+        'ref-blue-start': '#A5C9FF', 
+        'ref-blue-end': '#EBF4FF',
         
-        // The "Conveyor Belt" Peach/Orange
-        'factory-peach': '#FF8A65',
-        'factory-peach-dark': '#E64A19', // For 3D shadows on buttons
+        // Reference Orange (Buttons/Accent)
+        'ref-orange': '#FF9F68',
+        'ref-orange-dark': '#FF844B',
         
-        // The "Cylinder" Lavender
-        'factory-lavender': '#B39DDB',
-        
-        // The "Light Sphere" Cream
-        'factory-cream': '#FFF9C4',
-        
-        // Deep contrast text (instead of black)
-        'factory-ink': '#1A237E', 
-        
-        'factory-glass': 'rgba(255, 255, 255, 0.4)',
+        // Text Colors
+        'ref-text': '#475569',
+        'ref-text-light': '#94A3B8',
       },
       boxShadow: {
-        // Claymorphism shadows for UI to look like 3D models
-        'clay-card': '8px 8px 16px rgba(2, 136, 209, 0.15), -8px -8px 16px rgba(255, 255, 255, 0.4)',
-        'clay-btn': '0px 6px 0px #E64A19, 0px 10px 10px rgba(0,0,0,0.15)', // 3D Push button look
-        'clay-btn-pressed': '0px 2px 0px #E64A19, 0px 4px 4px rgba(0,0,0,0.1)',
+        // High quality "Clay" shadows for buttons
+        'clay-btn': '0px 10px 20px rgba(255, 159, 104, 0.4), inset 0px 4px 6px rgba(255,255,255,0.4), inset 0px -4px 6px rgba(0,0,0,0.1)',
+        'clay-btn-pressed': '0px 4px 10px rgba(255, 159, 104, 0.3), inset 0px 4px 8px rgba(0,0,0,0.1)',
+        
+        // Soft Glass Card Shadow
+        'glass-card': '0 20px 40px -10px rgba(165, 201, 255, 0.4), 0 0 0 1px rgba(255,255,255,0.5) inset',
+        
+        // Icon floating shadow
+        'icon-float': '0 15px 30px -5px rgba(0,0,0,0.15)',
       },
       backgroundImage: {
-        'factory-gradient': 'radial-gradient(circle at 50% 0%, #81D4FA 0%, #29B6F6 100%)',
+        'app-gradient': 'linear-gradient(180deg, #A5C9FF 0%, #EBF4FF 100%)',
+        'orange-gradient': 'linear-gradient(135deg, #FFB085 0%, #FF844B 100%)',
       },
-      animation: {
-        'float': 'float 6s ease-in-out infinite',
-      },
-      keyframes: {
-        float: {
-          '0%, 100%': { transform: 'translateY(0)' },
-          '50%': { transform: 'translateY(-10px)' },
-        }
+      fontFamily: {
+        'rounded': ['"Varela Round"', 'sans-serif'], // Soft rounded font if available, else sans
       }
     },
   },

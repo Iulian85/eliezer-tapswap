@@ -1,4 +1,3 @@
-
 import { useGameStore } from '../../store/useGameStore';
 import Navigation from './Navigation';
 import { ShopTab, TasksTab, FrensTab, WalletTab } from './TabViews';
@@ -6,9 +5,7 @@ import { showAd } from '../../utils/adsgram';
 import { useState } from 'react';
 
 export default function Menu() {
-  const { gameState, initGame, activeTab, claimDailyReward, lastRewardClaimedDate, walletBalance, user } = useGameStore();
-  const today = new Date().toDateString();
-  const isRewardAvailable = lastRewardClaimedDate !== today;
+  const { gameState, initGame, activeTab, walletBalance, user } = useGameStore();
   const [isLoadingAd, setIsLoadingAd] = useState(false);
 
   if (gameState === 'PLAYING') return null;
@@ -21,14 +18,6 @@ export default function Menu() {
     initGame(1);
   };
 
-  const handleClaimReward = async () => {
-    if (isLoadingAd || !isRewardAvailable) return;
-    setIsLoadingAd(true);
-    await showAd();
-    setIsLoadingAd(false);
-    claimDailyReward();
-  };
-
   const renderContent = () => {
     switch(activeTab) {
         case 'TASKS': return <TasksTab />;
@@ -38,36 +27,41 @@ export default function Menu() {
         case 'HOME':
         default:
             return (
-                <div className="w-full max-w-sm text-center pt-56 flex flex-col items-center animate-in fade-in slide-in-from-bottom-4 duration-700">
-                    {/* Floating Balance Card - Clay Style */}
-                    <div className="clay-panel px-10 py-5 mb-10 flex flex-col items-center transform hover:scale-105 transition-transform duration-300">
-                        <div className="text-[10px] text-factory-ink/50 uppercase tracking-[0.2em] font-black mb-1">Total Balance</div>
-                        <div className="text-4xl font-black text-factory-ink tracking-tight drop-shadow-sm">{walletBalance.toLocaleString()}</div>
-                        <div className="text-[10px] font-bold text-factory-peach uppercase tracking-wider mt-1">ELZR Tokens</div>
-                    </div>
+                <div className="w-full h-full flex flex-col items-center justify-between pb-32 pt-10 px-6 animate-in fade-in duration-700">
+                    
+                    {/* The 3D Scene is behind this, showing the Logo */}
+                    <div className="flex-1 w-full" /> 
 
-                    <div className="w-full space-y-4 px-6">
-                        {/* 3D Main Button - The "Big Peach Button" */}
+                    {/* Bottom Action Area */}
+                    <div className="w-full max-w-sm flex flex-col gap-4">
+                        
+                        {/* Play Button - Big Orange Pill */}
                         <button
                             onClick={handleStartGame}
                             disabled={isLoadingAd}
-                            className="w-full h-18 py-5 rounded-3xl bg-factory-peach font-black text-2xl text-white shadow-clay-btn active:shadow-clay-btn-pressed active:translate-y-[6px] transition-all flex items-center justify-center gap-3 border-t-2 border-white/20 relative overflow-hidden group"
+                            className="btn-primary-3d w-full h-16 text-xl font-black tracking-wide shadow-clay-btn flex items-center justify-center gap-2 group"
                         >
-                            <span className="relative z-10">{isLoadingAd ? 'LOADING...' : 'PLAY NOW'}</span>
-                            <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300" />
+                            {isLoadingAd ? (
+                                <span className="animate-pulse">LOADING...</span>
+                            ) : (
+                                <>
+                                    <span className="text-2xl group-hover:scale-110 transition-transform">▶</span>
+                                    <span>PLAY</span>
+                                </>
+                            )}
                         </button>
+                        
+                        {/* Balance Pill */}
+                        <div className="glass-pill px-6 py-3 flex justify-between items-center w-full">
+                             <div className="flex items-center gap-2">
+                                <span className="text-xl">🐹</span>
+                                <span className="font-bold text-ref-text text-sm">Balance</span>
+                             </div>
+                             <span className="font-black text-xl text-ref-text tracking-tight">
+                                {walletBalance.toLocaleString()}
+                             </span>
+                        </div>
 
-                        <button
-                            onClick={handleClaimReward}
-                            disabled={!isRewardAvailable || isLoadingAd}
-                            className={`w-full h-14 rounded-2xl font-bold text-lg shadow-clay-btn active:shadow-clay-btn-pressed active:translate-y-[4px] transition-all border-t border-white/20 flex items-center justify-center gap-2 ${
-                                isRewardAvailable 
-                                ? 'bg-factory-blue-deep text-white' 
-                                : 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none'
-                            }`}
-                        >
-                             {isLoadingAd ? '...' : (isRewardAvailable ? '🎁 CLAIM GIFT' : '✅ GIFT CLAIMED')}
-                        </button>
                     </div>
                 </div>
             );
@@ -75,23 +69,33 @@ export default function Menu() {
   };
 
   return (
-    <>
-        <div className="absolute inset-0 z-40 flex flex-col items-center overflow-hidden pb-32">
+    <div className="absolute inset-0 z-40 flex flex-col items-center overflow-hidden">
+        {/* Top Header Row */}
+        <div className="absolute top-0 left-0 w-full p-6 z-50 flex justify-between items-center">
+            {activeTab !== 'HOME' && (
+                <button 
+                    onClick={() => useGameStore.getState().setActiveTab('HOME')}
+                    className="w-10 h-10 glass-pill flex items-center justify-center text-lg active:scale-95 transition-transform"
+                >
+                    ⬅
+                </button>
+            )}
             
-            {/* Header */}
-            <div className="absolute top-0 left-0 w-full p-6 flex justify-between items-center z-50">
-                <div className="flex items-center gap-2 bg-white/60 px-5 py-2.5 rounded-full backdrop-blur-xl border border-white/60 shadow-lg">
-                    <div className="w-6 h-6 bg-gradient-to-br from-factory-peach to-orange-500 rounded-full shadow-inner" />
-                    <span className="font-bold text-sm text-factory-ink">{user?.username || 'Player'}</span>
-                </div>
-            </div>
+            {activeTab === 'HOME' && <div />} {/* Spacer */}
 
-            <div className="flex-1 w-full flex flex-col items-center">
-                {renderContent()}
-            </div>
-            
-            <Navigation />
+            <button className="w-10 h-10 glass-pill flex items-center justify-center text-lg active:scale-95 transition-transform">
+                ⋮
+            </button>
         </div>
-    </>
+
+        <div className="w-full h-full relative">
+            {renderContent()}
+        </div>
+        
+        {/* Navigation is only shown on HOME technically in the reference, but we keep it for usability or hide it if viewing sub-tabs? 
+            Reference implies sub-screens are full screen overlays. Let's keep Nav for easy access but style it soft.
+        */}
+        <Navigation />
+    </div>
   );
 }

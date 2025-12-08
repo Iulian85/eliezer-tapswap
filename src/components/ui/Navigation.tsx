@@ -1,4 +1,3 @@
-
 import { useGameStore } from '../../store/useGameStore';
 import { TabType } from '../../types';
 
@@ -8,16 +7,15 @@ export default function Navigation() {
   if (gameState === 'PLAYING') return null;
 
   const tabs: { id: TabType; label: string; icon: string }[] = [
-    { id: 'HOME', label: 'Home', icon: '🏠' },
-    { id: 'TASKS', label: 'Tasks', icon: '📋' },
-    { id: 'SHOP', label: 'Shop', icon: '🛒' },
+    { id: 'HOME', label: 'Play', icon: '🏠' },
+    { id: 'SHOP', label: 'Shop', icon: '🛍️' },
     { id: 'FRENS', label: 'Frens', icon: '👥' },
     { id: 'WALLET', label: 'Wallet', icon: '👛' },
   ];
 
   return (
-    <div className="absolute bottom-8 left-0 w-full px-4 z-50 pointer-events-none">
-      <div className="bg-white/50 backdrop-blur-2xl rounded-[3rem] p-2.5 flex justify-between items-center shadow-clay-card pointer-events-auto border-2 border-white/60 mx-auto max-w-sm">
+    <div className="absolute bottom-6 left-0 w-full px-8 z-50 pointer-events-none">
+      <div className="bg-white/70 backdrop-blur-2xl rounded-3xl p-2 flex justify-between items-center shadow-lg pointer-events-auto max-w-sm mx-auto">
         {tabs.map((tab) => {
           const isActive = activeTab === tab.id;
           return (
@@ -25,16 +23,15 @@ export default function Navigation() {
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               className={`
-                relative flex flex-col items-center justify-center w-14 h-14 rounded-full transition-all duration-300
+                flex flex-col items-center justify-center w-14 h-14 rounded-2xl transition-all duration-300
                 ${isActive 
-                    ? 'bg-factory-peach text-white shadow-clay-btn -translate-y-2' 
-                    : 'bg-transparent text-factory-ink hover:bg-white/40'
+                    ? 'bg-ref-orange text-white shadow-clay-btn scale-105' 
+                    : 'text-ref-text hover:bg-white/40'
                 }
               `}
             >
-              <span className={`text-2xl drop-shadow-sm transition-transform ${isActive ? 'scale-100' : 'scale-90 opacity-60'}`}>
-                {tab.icon}
-              </span>
+              <span className="text-xl mb-0.5">{tab.icon}</span>
+              {isActive && <span className="text-[9px] font-bold uppercase">{tab.label}</span>}
             </button>
           );
         })}
