@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { useGameStore } from '../../store/useGameStore';
 import { tg } from '../../utils/telegram';
@@ -148,28 +149,46 @@ export const WalletTab = () => {
         <div className="w-full h-full pt-20 px-6 pb-32">
             <SectionTitle>Wallet</SectionTitle>
             
-            <GlassCard className="flex flex-col items-center py-10 mb-6">
+            <GlassCard className="flex flex-col items-center py-10 mb-6 relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-24 h-24 bg-ref-orange/10 rounded-full blur-2xl -translate-y-1/2 translate-x-1/2" />
+                
                 <div className="text-sm text-ref-text-light font-bold uppercase tracking-widest mb-2">Total Balance</div>
-                <div className="text-5xl font-black text-ref-text mb-2 tracking-tighter">
+                <div className="text-5xl font-black text-ref-text mb-2 tracking-tighter drop-shadow-sm">
                     {walletBalance.toLocaleString()}
                 </div>
-                <div className="bg-orange-100 text-orange-600 px-3 py-1 rounded-full text-xs font-bold">
+                <div className="bg-orange-100 text-orange-600 px-4 py-1.5 rounded-full text-xs font-black shadow-sm">
                     $ELZR Token
                 </div>
             </GlassCard>
 
             <div className="space-y-4">
-                 <div className="bg-white/40 rounded-2xl p-4 flex items-center justify-between">
+                 {/* Connect Wallet Card */}
+                 <div className="bg-white/40 backdrop-blur-md rounded-2xl p-4 flex items-center justify-between border border-white/50 shadow-sm">
                     <div className="flex items-center gap-4">
-                         <div className="w-10 h-10 bg-green-100 rounded-xl flex items-center justify-center text-green-600">Tasks</div>
+                         <div className="w-12 h-12 bg-blue-50 text-blue-500 rounded-2xl flex items-center justify-center text-2xl shadow-inner border border-blue-100">
+                            👛
+                         </div>
                          <div className="flex flex-col">
-                             <span className="font-bold text-ref-text text-sm">Connect Wallet</span>
-                             <div className="w-24 h-1.5 bg-gray-200 rounded-full mt-1 overflow-hidden">
-                                 <div className="w-2/3 h-full bg-green-400 rounded-full" />
-                             </div>
+                             <span className="font-bold text-ref-text text-sm">Connect TON Wallet</span>
+                             <span className="text-xs text-ref-text-light font-medium">Link your wallet for withdrawals</span>
                          </div>
                     </div>
-                    <button className="bg-white px-3 py-1.5 rounded-lg text-xs font-bold shadow-sm">Connect</button>
+                    <button className="bg-white px-4 py-2 rounded-xl text-xs font-bold text-ref-text shadow-sm border border-white/60 active:scale-95 transition-transform">
+                        Connect
+                    </button>
+                 </div>
+
+                 {/* History Placeholder */}
+                 <div className="bg-white/20 backdrop-blur-sm rounded-2xl p-4 flex items-center justify-between border border-white/30">
+                    <div className="flex items-center gap-4 opacity-60">
+                         <div className="w-12 h-12 bg-gray-100 text-gray-400 rounded-2xl flex items-center justify-center text-2xl shadow-inner">
+                            📜
+                         </div>
+                         <div className="flex flex-col">
+                             <span className="font-bold text-ref-text text-sm">Transaction History</span>
+                             <span className="text-xs text-ref-text-light font-medium">No transactions yet</span>
+                         </div>
+                    </div>
                  </div>
             </div>
         </div>
