@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { useSpring, animated, config } from '@react-spring/three';
-import { Text, Cylinder, Float, Outlines } from '@react-three/drei';
+import { Text, Cylinder, Float, Outlines, RoundedBox } from '@react-three/drei';
 import { TokenType, Tile, TOKEN_COLORS } from '../../types';
 import * as THREE from 'three';
 import { getPos } from '../../utils/grid';
@@ -15,7 +15,7 @@ interface Props {
 const LABELS: Record<TokenType, string> = {
   HMSTR: '🐹',
   USDT: '$',
-  NOT: 'NOT',
+  NOT: 'N',
   DOGS: '🐶',
   TON: '💎',
   ELZR: '▲',
@@ -29,9 +29,9 @@ const Token3D: React.FC<Props> = ({ data, selected, onClick }) => {
 
   const { position, scale, rotation } = useSpring({
     position: [targetX, targetY, targetZ],
-    scale: selected ? 1.2 : 1,
+    scale: selected ? 1.15 : 1,
     rotation: selected ? [Math.PI / 2, Math.PI * 2, 0] : [Math.PI / 2, 0, 0],
-    config: config.wobbly
+    config: { tension: 200, friction: 15 } // Snappy but soft spring
   });
 
   const color = TOKEN_COLORS[data.type] || '#ffffff';
@@ -48,8 +48,8 @@ const Token3D: React.FC<Props> = ({ data, selected, onClick }) => {
     >
       <Float speed={2} rotationIntensity={0} floatIntensity={0.1}>
         <group>
-          {/* Main Body - Matte Plastic */}
-          <Cylinder args={[0.42, 0.42, 0.15, 32]}>
+          {/* Main Body - Soft Matte Plastic / Clay Material */}
+          <Cylinder args={[0.42, 0.42, 0.15, 64]}>
             <meshPhysicalMaterial
               color={color}
               metalness={0.1}
@@ -57,30 +57,27 @@ const Token3D: React.FC<Props> = ({ data, selected, onClick }) => {
               clearcoat={0.3}
               clearcoatRoughness={0.2}
               emissive={selected ? color : '#000'}
-              emissiveIntensity={selected ? 0.3 : 0}
+              emissiveIntensity={selected ? 0.2 : 0}
             />
-            {/* White outline for "cartoonish" premium look */}
-            <Outlines thickness={0.02} color={selected ? '#FFF' : 'rgba(0,0,0,0.1)'} />
           </Cylinder>
           
-          {/* Inner Face */}
-          <Cylinder args={[0.36, 0.36, 0.16, 32]}>
+          {/* Inner Bevel - Subtle detail */}
+          <Cylinder args={[0.35, 0.35, 0.16, 64]}>
              <meshPhysicalMaterial 
                 color={color} 
                 metalness={0.1} 
-                roughness={0.6}
-                // slightly darker or lighter to create rim effect
+                roughness={0.5}
+                clearcoat={0}
              />
           </Cylinder>
 
-          {/* Text Symbol */}
+          {/* Text Symbol - High Contrast */}
           <Text
-            position={[0, 0.1, 0]}
+            position={[0, 0.09, 0]}
             rotation={[-Math.PI / 2, 0, 0]}
             fontSize={0.35}
             fontWeight={900}
-            // Using factory-ink (dark blue) for almost all tokens for high contrast
-            color={'#1A237E'} 
+            color={'#1A237E'} // Factory Ink for everything
             anchorX="center"
             anchorY="middle"
           >

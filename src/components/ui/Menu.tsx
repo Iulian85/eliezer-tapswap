@@ -38,34 +38,35 @@ export default function Menu() {
         case 'HOME':
         default:
             return (
-                <div className="w-full max-w-sm text-center pt-56 flex flex-col items-center">
+                <div className="w-full max-w-sm text-center pt-56 flex flex-col items-center animate-in fade-in slide-in-from-bottom-4 duration-700">
                     {/* Floating Balance Card - Clay Style */}
-                    <div className="clay-panel px-8 py-4 mb-8 flex flex-col items-center">
-                        <div className="text-xs text-factory-ink/60 uppercase tracking-widest font-bold mb-1">Balance</div>
-                        <div className="text-3xl font-black text-factory-ink">{walletBalance}</div>
-                        <div className="text-[10px] font-bold text-factory-peach uppercase">ELZR Tokens</div>
+                    <div className="clay-panel px-10 py-5 mb-10 flex flex-col items-center transform hover:scale-105 transition-transform duration-300">
+                        <div className="text-[10px] text-factory-ink/50 uppercase tracking-[0.2em] font-black mb-1">Total Balance</div>
+                        <div className="text-4xl font-black text-factory-ink tracking-tight drop-shadow-sm">{walletBalance.toLocaleString()}</div>
+                        <div className="text-[10px] font-bold text-factory-peach uppercase tracking-wider mt-1">ELZR Tokens</div>
                     </div>
 
-                    <div className="w-full space-y-5 px-4">
-                        {/* 3D Main Button */}
+                    <div className="w-full space-y-4 px-6">
+                        {/* 3D Main Button - The "Big Peach Button" */}
                         <button
                             onClick={handleStartGame}
                             disabled={isLoadingAd}
-                            className="w-full h-16 rounded-2xl bg-factory-peach font-black text-xl text-white shadow-clay-btn active:shadow-clay-btn-pressed active:translate-y-[4px] transition-all flex items-center justify-center gap-2 border-t border-white/30"
+                            className="w-full h-18 py-5 rounded-3xl bg-factory-peach font-black text-2xl text-white shadow-clay-btn active:shadow-clay-btn-pressed active:translate-y-[6px] transition-all flex items-center justify-center gap-3 border-t-2 border-white/20 relative overflow-hidden group"
                         >
-                            {isLoadingAd ? 'LOADING...' : 'PLAY NOW'}
+                            <span className="relative z-10">{isLoadingAd ? 'LOADING...' : 'PLAY NOW'}</span>
+                            <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300" />
                         </button>
 
                         <button
                             onClick={handleClaimReward}
                             disabled={!isRewardAvailable || isLoadingAd}
-                            className={`w-full h-14 rounded-2xl font-bold text-lg shadow-clay-btn active:shadow-clay-btn-pressed active:translate-y-[4px] transition-all border-t border-white/30 flex items-center justify-center gap-2 ${
+                            className={`w-full h-14 rounded-2xl font-bold text-lg shadow-clay-btn active:shadow-clay-btn-pressed active:translate-y-[4px] transition-all border-t border-white/20 flex items-center justify-center gap-2 ${
                                 isRewardAvailable 
                                 ? 'bg-factory-blue-deep text-white' 
-                                : 'bg-gray-300 text-gray-500 cursor-not-allowed shadow-none'
+                                : 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none'
                             }`}
                         >
-                             {isLoadingAd ? '...' : (isRewardAvailable ? 'CLAIM DAILY GIFT' : 'GIFT CLAIMED')}
+                             {isLoadingAd ? '...' : (isRewardAvailable ? '🎁 CLAIM GIFT' : '✅ GIFT CLAIMED')}
                         </button>
                     </div>
                 </div>
@@ -79,13 +80,13 @@ export default function Menu() {
             
             {/* Header */}
             <div className="absolute top-0 left-0 w-full p-6 flex justify-between items-center z-50">
-                <div className="flex items-center gap-2 bg-white/40 px-4 py-2 rounded-full backdrop-blur-md border border-white/50 shadow-sm">
-                    <div className="w-6 h-6 bg-gradient-to-br from-factory-peach to-orange-500 rounded-full box-shadow-md" />
+                <div className="flex items-center gap-2 bg-white/60 px-5 py-2.5 rounded-full backdrop-blur-xl border border-white/60 shadow-lg">
+                    <div className="w-6 h-6 bg-gradient-to-br from-factory-peach to-orange-500 rounded-full shadow-inner" />
                     <span className="font-bold text-sm text-factory-ink">{user?.username || 'Player'}</span>
                 </div>
             </div>
 
-            <div className="flex-1 w-full flex flex-col items-center animate-in fade-in slide-in-from-bottom-8 duration-500">
+            <div className="flex-1 w-full flex flex-col items-center">
                 {renderContent()}
             </div>
             

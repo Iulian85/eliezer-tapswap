@@ -66,14 +66,14 @@ export interface GameStoreState {
 
 export const TOKEN_TYPES: TokenType[] = ['HMSTR', 'USDT', 'NOT', 'DOGS', 'TON', 'ELZR'];
 
-// Updated Palette based on Reference Image "Conveyor Belt" aesthetic
+// Reference-based "Factory" Palette
 export const TOKEN_COLORS: Record<TokenType, string> = {
-  HMSTR: '#FF8A65', // Factory Peach (Main Accent)
-  USDT: '#AED581', // Soft Green
-  NOT: '#90A4AE',  // Matte Grey
-  DOGS: '#FFF9C4', // Soft Cream
-  TON: '#4FC3F7',  // Factory Blue (Main)
-  ELZR: '#FFD54F', // Soft Amber/Gold
+  HMSTR: '#FF8A65', // Factory Peach (The Accent)
+  USDT: '#C5E1A5', // Soft Green (Pastel)
+  NOT: '#CFD8DC',  // Matte Grey/Blue
+  DOGS: '#FFF59D', // Soft Cream/Yellow
+  TON: '#81D4FA',  // Sky Blue
+  ELZR: '#FFCC80', // Soft Orange
   EMPTY: 'transparent'
 };
 

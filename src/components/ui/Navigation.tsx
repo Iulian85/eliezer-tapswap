@@ -16,8 +16,8 @@ export default function Navigation() {
   ];
 
   return (
-    <div className="absolute bottom-6 left-0 w-full px-6 z-50 pointer-events-none">
-      <div className="bg-white/40 backdrop-blur-xl rounded-[2rem] p-2 flex justify-between items-center shadow-clay-card pointer-events-auto border border-white/50">
+    <div className="absolute bottom-8 left-0 w-full px-4 z-50 pointer-events-none">
+      <div className="bg-white/50 backdrop-blur-2xl rounded-[3rem] p-2.5 flex justify-between items-center shadow-clay-card pointer-events-auto border-2 border-white/60 mx-auto max-w-sm">
         {tabs.map((tab) => {
           const isActive = activeTab === tab.id;
           return (
@@ -25,14 +25,14 @@ export default function Navigation() {
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               className={`
-                relative flex flex-col items-center justify-center w-14 h-14 rounded-2xl transition-all duration-300
+                relative flex flex-col items-center justify-center w-14 h-14 rounded-full transition-all duration-300
                 ${isActive 
-                    ? 'bg-factory-peach shadow-clay-btn translate-y-[-4px]' 
-                    : 'bg-transparent text-factory-ink hover:bg-white/30'
+                    ? 'bg-factory-peach text-white shadow-clay-btn -translate-y-2' 
+                    : 'bg-transparent text-factory-ink hover:bg-white/40'
                 }
               `}
             >
-              <span className={`text-2xl drop-shadow-sm transition-transform ${isActive ? 'scale-110' : 'scale-100 opacity-70'}`}>
+              <span className={`text-2xl drop-shadow-sm transition-transform ${isActive ? 'scale-100' : 'scale-90 opacity-60'}`}>
                 {tab.icon}
               </span>
             </button>
