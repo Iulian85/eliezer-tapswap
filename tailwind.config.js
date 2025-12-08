@@ -1,3 +1,4 @@
+
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   content: [
@@ -7,9 +8,10 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        'eliezer-bg': '#1a0033',
-        'eliezer-purple': '#6d28d9',
-        'eliezer-gold': '#F59E0B',
+        'eliezer-bg': '#81D4FA', // Soft Blue base
+        'eliezer-purple': '#7986CB', // Soft Indigo
+        'eliezer-gold': '#FFCC80', // Soft Gold
+        'eliezer-peach': '#FFAB91', // Peach accent
       }
     },
   },

@@ -1,3 +1,4 @@
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -5,7 +6,8 @@
 body {
   margin: 0;
   padding: 0;
-  background-color: #1a0033;
+  /* Soft Blue Gradient */
+  background: linear-gradient(180deg, #E3F2FD 0%, #90CAF9 100%);
   color: white;
   font-family: 'Inter', sans-serif;
   overflow: hidden;

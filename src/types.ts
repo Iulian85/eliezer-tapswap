@@ -74,13 +74,14 @@ export interface GameStoreState {
 export const TOKEN_TYPES: TokenType[] = ['HMSTR', 'USDT', 'NOT', 'DOGS', 'TON', 'ELZR'];
 
 // FIX: Exported TOKEN_COLORS to be used in components like Token.tsx.
+// UPDATED: New "Premium Soft" Palette to match the logo redesign
 export const TOKEN_COLORS: Record<TokenType, string> = {
-  HMSTR: '#D97706', // Amber/Orange
-  USDT: '#22C55E', // Green
-  NOT: '#171717',  // Black
-  DOGS: '#F3F4F6', // White
-  TON: '#3B82F6',  // Blue
-  ELZR: '#EAB308', // Gold
+  HMSTR: '#FFAB91', // Soft Peach
+  USDT: '#A5D6A7', // Soft Mint
+  NOT: '#546E7A',  // Blue Grey (Matte)
+  DOGS: '#F5F5F5', // Soft White
+  TON: '#90CAF9',  // Soft Blue
+  ELZR: '#FFCC80', // Soft Gold
   EMPTY: 'transparent'
 };
 
