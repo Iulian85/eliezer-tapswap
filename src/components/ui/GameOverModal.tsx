@@ -6,7 +6,7 @@ import { tg } from '../../utils/telegram';
 import { showAd } from '../../utils/adsgram';
 
 const GameOverModal: React.FC = () => {
-  const { gameState, score, level, startGame, walletBalance } = useGameStore();
+  const { gameState, score, level, startGame } = useGameStore();
   const [displayedScore, setDisplayedScore] = useState(0);
   const [displayedReward, setDisplayedReward] = useState(0);
   const [isLoadingAd, setIsLoadingAd] = useState(false);
@@ -29,13 +29,15 @@ const GameOverModal: React.FC = () => {
                 particleCount,
                 startVelocity: 30,
                 spread: 360,
-                origin: { x: random(0.1, 0.3), y: Math.random() - 0.2 }
+                origin: { x: random(0.1, 0.3), y: Math.random() - 0.2 },
+                colors: ['#FF9F68', '#A5C9FF', '#FFFFFF'] // Updated confetti colors to match theme
             });
             confetti({
                 particleCount,
                 startVelocity: 30,
                 spread: 360,
-                origin: { x: random(0.7, 0.9), y: Math.random() - 0.2 }
+                origin: { x: random(0.7, 0.9), y: Math.random() - 0.2 },
+                colors: ['#FF9F68', '#A5C9FF', '#FFFFFF']
             });
         }, 250);
     }
@@ -82,29 +84,36 @@ const GameOverModal: React.FC = () => {
   };
 
   return (
-    <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-6 animate-fade-in perspective-1000">
-      <div className="bg-gradient-to-br from-slate-800 to-slate-900 border border-white/20 p-8 rounded-3xl w-full max-w-sm text-center shadow-2xl transform transition-transform hover:rotate-x-2">
-        <div className="mb-4 text-6xl animate-bounce">
-            {isWin ? '🎉' : '💀'}
+    <div className="absolute inset-0 z-50 flex items-center justify-center bg-ref-blue-end/60 backdrop-blur-sm p-6 animate-fade-in perspective-1000">
+      
+      {/* Premium Glass Card */}
+      <div className="glass-panel w-full max-w-sm p-8 text-center transform transition-transform hover:scale-[1.02] shadow-2xl relative overflow-hidden">
+        
+        {/* Decorative background glow inside card */}
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-32 bg-ref-orange/20 blur-3xl rounded-full -z-10" />
+
+        <div className="mb-6 text-7xl animate-bounce drop-shadow-md">
+            {isWin ? '🏆' : '💔'}
         </div>
         
-        <h2 className={`text-4xl font-black mb-2 ${isWin ? 'text-eliezer-gold' : 'text-red-500'}`}>
+        <h2 className="text-4xl font-black mb-2 text-ref-text tracking-tight">
           {isWin ? 'LEVEL UP!' : 'GAME OVER'}
         </h2>
         
-        <p className="text-gray-300 mb-6">
-          {isWin ? `You crushed Level ${level}!` : 'Out of moves, fam.'}
+        <p className="text-ref-text-light font-bold mb-8">
+          {isWin ? `You crushed Level ${level}!` : 'Don\'t give up! Try again.'}
         </p>
 
-        <div className="bg-black/30 rounded-xl p-4 mb-6 backdrop-blur-md">
-          <div className="flex justify-between mb-2">
-            <span className="text-gray-400">Score</span>
-            <span className="font-mono font-bold text-white text-xl">{displayedScore}</span>
+        {/* Stats Container - Soft White Inset */}
+        <div className="bg-white/50 rounded-2xl p-5 mb-8 border border-white/60 shadow-inner">
+          <div className="flex justify-between items-center mb-3">
+            <span className="text-ref-text-light font-bold text-sm uppercase tracking-wider">Score</span>
+            <span className="font-black text-ref-text text-2xl">{displayedScore}</span>
           </div>
           {isWin && (
-              <div className="flex justify-between text-green-400">
-                <span>Reward</span>
-                <span className="font-bold text-xl">+{displayedReward} ELZR</span>
+              <div className="flex justify-between items-center">
+                <span className="text-ref-text-light font-bold text-sm uppercase tracking-wider">Reward</span>
+                <span className="font-black text-ref-orange text-2xl">+{displayedReward} ELZR</span>
               </div>
           )}
         </div>
@@ -112,23 +121,23 @@ const GameOverModal: React.FC = () => {
         <button
           onClick={handleNextAction}
           disabled={isLoadingAd}
-          className="w-full py-4 bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl font-bold text-lg shadow-lg active:scale-95 transition-transform mb-3"
+          className="btn-primary-3d w-full py-4 text-xl font-black tracking-wide shadow-clay-btn mb-4 flex items-center justify-center gap-2"
         >
-          {isLoadingAd ? 'Loading Ad...' : (isWin ? 'Next Level ➔' : 'Try Again ↻')}
+          {isLoadingAd ? 'Loading...' : (isWin ? 'Next Level ➔' : 'Try Again ↻')}
         </button>
 
         {isWin && (
             <button
                 onClick={handleShare}
-                className="w-full py-3 bg-white/10 rounded-xl font-bold text-white shadow-lg active:scale-95 transition-transform border border-white/10 hover:bg-white/20"
+                className="w-full py-3 bg-white/60 hover:bg-white/80 rounded-2xl font-bold text-ref-text shadow-sm active:scale-95 transition-all border border-white/50 flex items-center justify-center gap-2"
             >
-                ✨ Share Reward
+                <span>✨</span> Share Reward
             </button>
         )}
         
         <button 
            onClick={() => useGameStore.setState({ gameState: 'MENU' })}
-           className="mt-6 text-gray-500 text-sm underline hover:text-white transition-colors"
+           className="mt-6 text-ref-text-light text-sm font-bold hover:text-ref-text transition-colors"
         >
             Back to Menu
         </button>
