@@ -23,7 +23,6 @@ const LABELS: Record<TokenType, string> = {
 };
 
 const Token3D: React.FC<Props> = ({ data, selected, onClick }) => {
-  // Guard clause for empty tiles (destroyed)
   if (data.type === 'EMPTY') return null;
 
   const [targetX, targetY, targetZ] = getPos(data.x, data.y);
@@ -49,30 +48,39 @@ const Token3D: React.FC<Props> = ({ data, selected, onClick }) => {
     >
       <Float speed={2} rotationIntensity={0} floatIntensity={0.1}>
         <group>
-          {/* Increased radius to 0.42 since we have 6 cols now, fits better */}
+          {/* Main Body - Matte Plastic */}
           <Cylinder args={[0.42, 0.42, 0.15, 32]}>
-            <meshStandardMaterial
+            <meshPhysicalMaterial
               color={color}
-              metalness={0.8}
-              roughness={0.3}
+              metalness={0.1}
+              roughness={0.4}
+              clearcoat={0.3}
+              clearcoatRoughness={0.2}
               emissive={selected ? color : '#000'}
-              emissiveIntensity={selected ? 0.5 : 0}
+              emissiveIntensity={selected ? 0.3 : 0}
             />
-            <Outlines thickness={0.02} color={selected ? 'white' : 'black'} />
+            {/* White outline for "cartoonish" premium look */}
+            <Outlines thickness={0.02} color={selected ? '#FFF' : 'rgba(0,0,0,0.1)'} />
           </Cylinder>
           
-          {/* Face Detail (Rim) */}
-          <Cylinder args={[0.37, 0.37, 0.16, 32]}>
-             <meshStandardMaterial color={color} metalness={0.7} roughness={0.5} />
+          {/* Inner Face */}
+          <Cylinder args={[0.36, 0.36, 0.16, 32]}>
+             <meshPhysicalMaterial 
+                color={color} 
+                metalness={0.1} 
+                roughness={0.6}
+                // slightly darker or lighter to create rim effect
+             />
           </Cylinder>
 
           {/* Text Symbol */}
           <Text
             position={[0, 0.1, 0]}
             rotation={[-Math.PI / 2, 0, 0]}
-            fontSize={0.38}
-            fontWeight={800}
-            color={data.type === 'DOGS' || data.type === 'USDT' ? 'black' : 'white'}
+            fontSize={0.35}
+            fontWeight={900}
+            // Using factory-ink (dark blue) for almost all tokens for high contrast
+            color={'#1A237E'} 
             anchorX="center"
             anchorY="middle"
           >

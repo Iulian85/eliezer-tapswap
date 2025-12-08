@@ -5,7 +5,6 @@ import { TabType } from '../../types';
 export default function Navigation() {
   const { activeTab, setActiveTab, gameState } = useGameStore();
 
-  // Hide navigation while playing
   if (gameState === 'PLAYING') return null;
 
   const tabs: { id: TabType; label: string; icon: string }[] = [
@@ -17,20 +16,28 @@ export default function Navigation() {
   ];
 
   return (
-    <div className="absolute bottom-0 left-0 w-full bg-slate-900/90 backdrop-blur-md border-t border-white/10 pb-6 pt-2 z-50">
-      <div className="flex justify-around items-center">
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`flex flex-col items-center justify-center w-full py-1 transition-all active:scale-95 ${
-              activeTab === tab.id ? 'text-eliezer-gold' : 'text-gray-400 hover:text-white'
-            }`}
-          >
-            <span className="text-2xl mb-1">{tab.icon}</span>
-            <span className="text-[10px] font-bold tracking-wider">{tab.label}</span>
-          </button>
-        ))}
+    <div className="absolute bottom-6 left-0 w-full px-6 z-50 pointer-events-none">
+      <div className="bg-white/40 backdrop-blur-xl rounded-[2rem] p-2 flex justify-between items-center shadow-clay-card pointer-events-auto border border-white/50">
+        {tabs.map((tab) => {
+          const isActive = activeTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`
+                relative flex flex-col items-center justify-center w-14 h-14 rounded-2xl transition-all duration-300
+                ${isActive 
+                    ? 'bg-factory-peach shadow-clay-btn translate-y-[-4px]' 
+                    : 'bg-transparent text-factory-ink hover:bg-white/30'
+                }
+              `}
+            >
+              <span className={`text-2xl drop-shadow-sm transition-transform ${isActive ? 'scale-110' : 'scale-100 opacity-70'}`}>
+                {tab.icon}
+              </span>
+            </button>
+          );
+        })}
       </div>
     </div>
   );

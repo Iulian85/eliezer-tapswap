@@ -11,13 +11,11 @@ export default function Menu() {
   const isRewardAvailable = lastRewardClaimedDate !== today;
   const [isLoadingAd, setIsLoadingAd] = useState(false);
 
-  // Don't show menu overlay when playing
   if (gameState === 'PLAYING') return null;
 
   const handleStartGame = async () => {
     if (isLoadingAd) return;
     setIsLoadingAd(true);
-    // Show Ad before starting game
     await showAd();
     setIsLoadingAd(false);
     initGame(1);
@@ -26,13 +24,11 @@ export default function Menu() {
   const handleClaimReward = async () => {
     if (isLoadingAd || !isRewardAvailable) return;
     setIsLoadingAd(true);
-    // Show Ad before claiming reward
     await showAd();
     setIsLoadingAd(false);
     claimDailyReward();
   };
 
-  // Content Renderer based on Active Tab
   const renderContent = () => {
     switch(activeTab) {
         case 'TASKS': return <TasksTab />;
@@ -42,41 +38,34 @@ export default function Menu() {
         case 'HOME':
         default:
             return (
-                <div className="w-full max-w-sm text-center pt-52">
-                    {/* Title is now rendered in 3D, so we leave space for it */}
-                    
-                    <div className="bg-white/20 backdrop-blur-md rounded-2xl p-4 mb-6 border border-white/30 shadow-lg">
-                        <div className="text-xs text-white/80 uppercase tracking-widest mb-1 font-bold">Current Balance</div>
-                        <div className="text-3xl font-mono text-white font-black drop-shadow-md">{walletBalance} ELZR</div>
+                <div className="w-full max-w-sm text-center pt-56 flex flex-col items-center">
+                    {/* Floating Balance Card - Clay Style */}
+                    <div className="clay-panel px-8 py-4 mb-8 flex flex-col items-center">
+                        <div className="text-xs text-factory-ink/60 uppercase tracking-widest font-bold mb-1">Balance</div>
+                        <div className="text-3xl font-black text-factory-ink">{walletBalance}</div>
+                        <div className="text-[10px] font-bold text-factory-peach uppercase">ELZR Tokens</div>
                     </div>
 
-                    <div className="space-y-4">
+                    <div className="w-full space-y-5 px-4">
+                        {/* 3D Main Button */}
                         <button
                             onClick={handleStartGame}
                             disabled={isLoadingAd}
-                            className="w-full py-5 bg-gradient-to-r from-eliezer-purple to-blue-600 rounded-2xl font-black text-xl text-white shadow-xl active:scale-95 transition-all hover:brightness-110 flex items-center justify-center gap-2 border border-white/20"
+                            className="w-full h-16 rounded-2xl bg-factory-peach font-black text-xl text-white shadow-clay-btn active:shadow-clay-btn-pressed active:translate-y-[4px] transition-all flex items-center justify-center gap-2 border-t border-white/30"
                         >
-                            {isLoadingAd ? (
-                                <span>⌛ Loading...</span>
-                            ) : (
-                                <><span>▶</span> START GAME</>
-                            )}
+                            {isLoadingAd ? 'LOADING...' : 'PLAY NOW'}
                         </button>
 
                         <button
                             onClick={handleClaimReward}
                             disabled={!isRewardAvailable || isLoadingAd}
-                            className={`w-full py-4 rounded-xl font-bold text-white shadow-lg transition-all flex items-center justify-center gap-2 border border-white/10 ${
+                            className={`w-full h-14 rounded-2xl font-bold text-lg shadow-clay-btn active:shadow-clay-btn-pressed active:translate-y-[4px] transition-all border-t border-white/30 flex items-center justify-center gap-2 ${
                                 isRewardAvailable 
-                                ? 'bg-gradient-to-r from-green-500 to-emerald-500 active:scale-95 hover:brightness-110' 
-                                : 'bg-white/10 opacity-70 cursor-not-allowed'
+                                ? 'bg-factory-blue-deep text-white' 
+                                : 'bg-gray-300 text-gray-500 cursor-not-allowed shadow-none'
                             }`}
                         >
-                             {isLoadingAd ? (
-                                <span>⌛ Loading...</span>
-                            ) : (
-                                <><span>🎁</span> {isRewardAvailable ? 'CLAIM REWARD' : 'CLAIMED'}</>
-                            )}
+                             {isLoadingAd ? '...' : (isRewardAvailable ? 'CLAIM DAILY GIFT' : 'GIFT CLAIMED')}
                         </button>
                     </div>
                 </div>
@@ -86,23 +75,20 @@ export default function Menu() {
 
   return (
     <>
-        {/* Updated Background: Transparent to show 3D Scene, but with a slight gradient overlay for readability at bottom */}
-        <div className="absolute inset-0 z-40 flex flex-col items-center pt-16 overflow-hidden pb-24 bg-gradient-to-b from-transparent via-transparent to-blue-900/30">
+        <div className="absolute inset-0 z-40 flex flex-col items-center overflow-hidden pb-32">
             
-            {/* Header (User Info) */}
-            <div className="absolute top-0 left-0 w-full p-4 flex justify-between items-center z-50">
-                <div className="flex items-center gap-2 bg-white/20 px-3 py-1 rounded-full backdrop-blur-md border border-white/30 shadow-sm">
-                    <div className="w-6 h-6 bg-gradient-to-br from-eliezer-peach to-orange-400 rounded-full" />
-                    <span className="font-bold text-sm text-white drop-shadow-sm">{user?.username || 'Player'}</span>
+            {/* Header */}
+            <div className="absolute top-0 left-0 w-full p-6 flex justify-between items-center z-50">
+                <div className="flex items-center gap-2 bg-white/40 px-4 py-2 rounded-full backdrop-blur-md border border-white/50 shadow-sm">
+                    <div className="w-6 h-6 bg-gradient-to-br from-factory-peach to-orange-500 rounded-full box-shadow-md" />
+                    <span className="font-bold text-sm text-factory-ink">{user?.username || 'Player'}</span>
                 </div>
             </div>
 
-            {/* Dynamic Content Area */}
-            <div className="flex-1 w-full px-6 overflow-y-auto flex flex-col items-center animate-in fade-in slide-in-from-bottom-4 duration-300 scrollbar-hide">
+            <div className="flex-1 w-full flex flex-col items-center animate-in fade-in slide-in-from-bottom-8 duration-500">
                 {renderContent()}
             </div>
             
-            {/* Bottom Navigation */}
             <Navigation />
         </div>
     </>

@@ -6,14 +6,38 @@
 body {
   margin: 0;
   padding: 0;
-  /* Soft Blue Gradient */
-  background: linear-gradient(180deg, #E3F2FD 0%, #90CAF9 100%);
-  color: white;
+  /* Deep Blue Studio Floor Base */
+  background-color: #29B6F6; 
+  color: #1A237E; /* Factory Ink */
   font-family: 'Inter', sans-serif;
   overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 #root {
   width: 100vw;
   height: 100vh;
+}
+
+/* Custom Scrollbar for Tasks/Frens */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.1);
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 10px;
+}
+
+/* Claymorphism Utility Class */
+.clay-panel {
+  background: rgba(255, 255, 255, 0.65);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  box-shadow: 0 10px 30px rgba(2, 136, 209, 0.15);
+  border-radius: 24px;
 }

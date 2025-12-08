@@ -1,65 +1,48 @@
 
+import React from 'react';
 import { useGameStore } from '../../store/useGameStore';
 import { tg } from '../../utils/telegram';
+
+const SectionTitle = ({ children }: { children: React.ReactNode }) => (
+    <h2 className="text-3xl font-black text-factory-ink mb-6 text-center tracking-tight">{children}</h2>
+);
+
+const Card = ({ children, className = '' }: { children: React.ReactNode, className?: string }) => (
+    <div className={`bg-white/60 backdrop-blur-lg border border-white/80 rounded-2xl p-4 shadow-sm ${className}`}>
+        {children}
+    </div>
+);
 
 export const ShopTab = () => {
     const { walletBalance, buyBooster, boosters } = useGameStore();
     return (
-        <div className="w-full max-w-sm">
-            <h2 className="text-2xl font-black text-white mb-4">Item Shop</h2>
-            <div className="bg-slate-800 rounded-xl p-4 mb-4 flex justify-between items-center border border-white/10">
-                <span>Balance:</span>
-                <span className="text-eliezer-gold font-mono font-bold">{walletBalance} ELZR</span>
-            </div>
-
-            <div className="space-y-3">
-                <div className="bg-slate-800/80 p-4 rounded-xl flex items-center justify-between border border-white/5">
-                    <div className="flex items-center gap-3">
-                        <div className="text-3xl">💣</div>
-                        <div>
-                            <div className="font-bold">Bomb</div>
-                            <div className="text-xs text-gray-400">Owned: {boosters.bomb}</div>
+        <div className="w-full max-w-sm pt-20 px-4">
+            <SectionTitle>Shop</SectionTitle>
+            
+            <div className="space-y-4">
+                {[
+                    { id: 'bomb', label: 'Bomb', icon: '💣', price: 500, count: boosters.bomb },
+                    { id: 'shuffle', label: 'Shuffle', icon: '🔀', price: 300, count: boosters.shuffle },
+                    { id: 'extraMoves', label: '+5 Moves', icon: '⚡', price: 800, count: boosters.extraMoves }
+                ].map((item) => (
+                    <Card key={item.id} className="flex items-center justify-between">
+                         <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 bg-factory-blue-light/30 rounded-xl flex items-center justify-center text-2xl">
+                                {item.icon}
+                            </div>
+                            <div>
+                                <div className="font-bold text-factory-ink text-lg">{item.label}</div>
+                                <div className="text-xs text-factory-ink/60 font-medium">Owned: {item.count}</div>
+                            </div>
                         </div>
-                    </div>
-                    <button 
-                        onClick={() => buyBooster('bomb', 500)}
-                        className="bg-eliezer-purple px-4 py-2 rounded-lg font-bold text-sm active:scale-95"
-                    >
-                        500 💎
-                    </button>
-                </div>
-
-                <div className="bg-slate-800/80 p-4 rounded-xl flex items-center justify-between border border-white/5">
-                    <div className="flex items-center gap-3">
-                        <div className="text-3xl">🔀</div>
-                        <div>
-                            <div className="font-bold">Shuffle</div>
-                            <div className="text-xs text-gray-400">Owned: {boosters.shuffle}</div>
-                        </div>
-                    </div>
-                    <button 
-                        onClick={() => buyBooster('shuffle', 300)}
-                        className="bg-eliezer-purple px-4 py-2 rounded-lg font-bold text-sm active:scale-95"
-                    >
-                        300 💎
-                    </button>
-                </div>
-
-                <div className="bg-slate-800/80 p-4 rounded-xl flex items-center justify-between border border-white/5">
-                    <div className="flex items-center gap-3">
-                        <div className="text-3xl">⚡</div>
-                        <div>
-                            <div className="font-bold">+5 Moves</div>
-                            <div className="text-xs text-gray-400">Owned: {boosters.extraMoves}</div>
-                        </div>
-                    </div>
-                    <button 
-                        onClick={() => buyBooster('extraMoves', 800)}
-                        className="bg-eliezer-purple px-4 py-2 rounded-lg font-bold text-sm active:scale-95"
-                    >
-                        800 💎
-                    </button>
-                </div>
+                        <button 
+                            onClick={() => buyBooster(item.id as any, item.price)}
+                            className="bg-factory-ink text-white px-5 py-2.5 rounded-xl font-bold text-sm shadow-lg active:scale-95 transition-transform"
+                        >
+                            {item.price}
+                        </button>
+                    </Card>
+                ))}
             </div>
         </div>
     );
@@ -67,30 +50,23 @@ export const ShopTab = () => {
 
 export const TasksTab = () => {
     return (
-        <div className="w-full max-w-sm">
-            <h2 className="text-2xl font-black text-white mb-4">Earn ELZR</h2>
-            <div className="space-y-3">
-                <div className="bg-slate-800 p-4 rounded-xl flex justify-between items-center opacity-75">
+        <div className="w-full max-w-sm pt-20 px-4">
+            <SectionTitle>Tasks</SectionTitle>
+            <div className="space-y-4">
+                <Card className="flex justify-between items-center opacity-70">
                     <div>
-                        <div className="font-bold">Join Telegram Channel</div>
-                        <div className="text-xs text-eliezer-gold">+500 ELZR</div>
+                        <div className="font-bold text-factory-ink">Telegram Channel</div>
+                        <div className="text-xs text-factory-peach font-bold">+500 ELZR</div>
                     </div>
-                    <button className="bg-white/10 px-3 py-1 rounded text-xs" disabled>Joined</button>
-                </div>
-                <div className="bg-slate-800 p-4 rounded-xl flex justify-between items-center">
+                    <span className="text-xs font-bold text-factory-ink/50 bg-black/5 px-2 py-1 rounded">DONE</span>
+                </Card>
+                <Card className="flex justify-between items-center">
                     <div>
-                        <div className="font-bold">Follow X (Twitter)</div>
-                        <div className="text-xs text-eliezer-gold">+300 ELZR</div>
+                        <div className="font-bold text-factory-ink">Follow on X</div>
+                        <div className="text-xs text-factory-peach font-bold">+300 ELZR</div>
                     </div>
-                    <button className="bg-eliezer-purple px-3 py-1 rounded text-xs font-bold">Go</button>
-                </div>
-                <div className="bg-slate-800 p-4 rounded-xl flex justify-between items-center">
-                    <div>
-                        <div className="font-bold">Connect Wallet</div>
-                        <div className="text-xs text-eliezer-gold">+1000 ELZR</div>
-                    </div>
-                    <button className="bg-eliezer-purple px-3 py-1 rounded text-xs font-bold">Connect</button>
-                </div>
+                    <button className="bg-factory-peach text-white px-4 py-1.5 rounded-lg text-sm font-bold shadow-md">Go</button>
+                </Card>
             </div>
         </div>
     );
@@ -101,37 +77,37 @@ export const FrensTab = () => {
     const inviteLink = `https://t.me/EliezerRushBot?start=${user?.id || 'r'}`;
 
     const handleInvite = () => {
-        const message = "Play Eliezer Rush with me! 🐹💎";
+        const message = "Play Eliezer Rush with me! 🐹";
         const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(inviteLink)}&text=${encodeURIComponent(message)}`;
         tg.openTelegramLink(shareUrl);
     };
 
     return (
-        <div className="w-full max-w-sm h-[70vh] flex flex-col">
-            <h2 className="text-2xl font-black text-white mb-4">Frens Zone</h2>
+        <div className="w-full max-w-sm pt-20 px-4 h-[80vh] flex flex-col">
+            <SectionTitle>Frens</SectionTitle>
             
-            <div className="bg-gradient-to-r from-purple-900 to-slate-900 p-6 rounded-2xl mb-6 text-center border border-white/10">
-                <div className="text-sm text-gray-300 mb-2">Invite friends & earn 10%</div>
+            <div className="bg-gradient-to-br from-factory-peach to-orange-400 p-6 rounded-3xl mb-8 text-center shadow-lg text-white">
+                <div className="text-sm opacity-90 mb-3 font-medium">Invite friends & earn 10%</div>
                 <button 
                     onClick={handleInvite}
-                    className="w-full bg-white text-black font-bold py-3 rounded-xl hover:bg-gray-200 transition-colors active:scale-95"
+                    className="w-full bg-white text-factory-peach-dark font-black py-3 rounded-xl shadow-sm hover:bg-gray-50 active:scale-95 transition-all"
                 >
-                    Invite a Friend 🔗
+                    Invite Friend
                 </button>
             </div>
 
-            <h3 className="font-bold mb-2 text-gray-400 uppercase text-sm">Leaderboard</h3>
-            <div className="flex-1 overflow-y-auto space-y-2 pr-1">
+            <h3 className="font-bold mb-3 text-factory-ink/50 uppercase text-xs tracking-wider ml-1">Leaderboard</h3>
+            <div className="flex-1 overflow-y-auto space-y-2 pr-1 pb-20">
                 {frens.map((fren, i) => (
-                    <div key={fren.id} className="flex items-center justify-between bg-slate-800/50 p-3 rounded-lg border border-white/5">
+                    <Card key={fren.id} className="flex items-center justify-between py-3">
                         <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 bg-slate-700 rounded-full flex items-center justify-center font-bold text-xs">
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${i < 3 ? 'bg-factory-peach text-white' : 'bg-gray-200 text-gray-500'}`}>
                                 {i + 1}
                             </div>
-                            <span>{fren.name}</span>
+                            <span className="font-bold text-factory-ink">{fren.name}</span>
                         </div>
-                        <span className="font-mono text-eliezer-gold">{fren.score}</span>
-                    </div>
+                        <span className="font-mono font-bold text-factory-blue-deep">{fren.score}</span>
+                    </Card>
                 ))}
             </div>
         </div>
@@ -141,38 +117,23 @@ export const FrensTab = () => {
 export const WalletTab = () => {
     const { walletBalance } = useGameStore();
     return (
-        <div className="w-full max-w-sm">
-            <h2 className="text-2xl font-black text-white mb-6">Wallet</h2>
+        <div className="w-full max-w-sm pt-20 px-4">
+            <SectionTitle>Wallet</SectionTitle>
             
-            <div className="bg-gradient-to-br from-eliezer-gold to-orange-600 p-8 rounded-3xl text-center shadow-lg shadow-orange-500/20 mb-8 transform hover:scale-[1.02] transition-transform">
-                <div className="text-black/60 font-bold uppercase tracking-widest text-sm mb-1">Total Balance</div>
-                <div className="text-5xl font-black text-white drop-shadow-md">{walletBalance.toLocaleString()}</div>
-                <div className="text-white/80 font-bold mt-1">ELZR TOKENS</div>
+            <div className="clay-panel p-8 text-center mb-8 bg-white/80">
+                <div className="text-factory-ink/50 font-bold uppercase tracking-widest text-xs mb-2">Total Balance</div>
+                <div className="text-5xl font-black text-factory-ink tracking-tighter">{walletBalance.toLocaleString()}</div>
             </div>
 
             <div className="grid grid-cols-2 gap-4 mb-6">
-                <button className="bg-slate-800 p-4 rounded-xl border border-white/10 flex flex-col items-center gap-2 active:scale-95 hover:bg-slate-700 transition-colors">
+                <button className="bg-white p-4 rounded-2xl shadow-sm flex flex-col items-center gap-2 active:scale-95 transition-transform border border-gray-100">
                     <span className="text-2xl">⬇️</span>
-                    <span className="font-bold text-sm">Deposit</span>
+                    <span className="font-bold text-factory-ink text-sm">Deposit</span>
                 </button>
-                <button className="bg-slate-800 p-4 rounded-xl border border-white/10 flex flex-col items-center gap-2 active:scale-95 hover:bg-slate-700 transition-colors">
+                <button className="bg-white p-4 rounded-2xl shadow-sm flex flex-col items-center gap-2 active:scale-95 transition-transform border border-gray-100">
                     <span className="text-2xl">⬆️</span>
-                    <span className="font-bold text-sm">Withdraw</span>
+                    <span className="font-bold text-factory-ink text-sm">Withdraw</span>
                 </button>
-            </div>
-
-            <div className="bg-slate-900/50 rounded-xl p-4">
-                <h3 className="text-xs font-bold text-gray-500 uppercase mb-3">Recent Transactions</h3>
-                <div className="space-y-3">
-                    <div className="flex justify-between text-sm">
-                        <span className="text-gray-300">Daily Reward</span>
-                        <span className="text-green-400">+100 ELZR</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                        <span className="text-gray-300">Level 5 Win</span>
-                        <span className="text-green-400">+250 ELZR</span>
-                    </div>
-                </div>
             </div>
         </div>
     );

@@ -1,80 +1,60 @@
 
 import { Suspense, useRef, useMemo } from 'react';
-import { Stars, Sparkles, Torus, Text3D, Center, Float, RoundedBox, Sphere } from '@react-three/drei';
-import { EffectComposer, Bloom, Vignette } from '@react-three/postprocessing';
+import { Stars, Sparkles, Text3D, Center, Float, RoundedBox, Sphere, Environment, Backdrop, AccumulativeShadows, RandomizedLight } from '@react-three/drei';
+import { EffectComposer, Bloom, Vignette, TiltShift2 } from '@react-three/postprocessing';
 import { useFrame } from '@react-three/fiber';
 import { useGameStore } from '../../store/useGameStore';
 import Token3D from './Token3D';
 import { getPos } from '../../utils/grid';
 import * as THREE from 'three';
 
-// Font URL for 3D Text
 const FONT_URL = 'https://unpkg.com/three@0.160.0/examples/fonts/helvetiker_bold.typeface.json';
+
+// Reuse material settings for consistency (Matte Plastic)
+const matteMaterial = new THREE.MeshPhysicalMaterial({
+    roughness: 0.5,
+    metalness: 0.1,
+    clearcoat: 0.1,
+    clearcoatRoughness: 0.4,
+});
 
 const ExplosionEffect = () => {
     const bombExplosionPosition = useGameStore(s => s.bombExplosionPosition);
-    const meshRef = useRef<THREE.Mesh>(null);
-    const scaleRef = useRef(0);
-    const lightRef = useRef<THREE.PointLight>(null);
-
-    useFrame((state, delta) => {
-        if (bombExplosionPosition && meshRef.current) {
-            scaleRef.current += delta * 25; 
-            const scale = scaleRef.current;
-            meshRef.current.scale.set(scale, scale, scale);
-            
-            const material = meshRef.current.material as THREE.MeshBasicMaterial;
-            material.opacity = Math.max(0, 1 - scale / 6);
-
-            // Flash light
-            if (lightRef.current) {
-                lightRef.current.intensity = Math.max(0, 20 - scale * 3);
-            }
-
-        } else {
-            scaleRef.current = 0;
-        }
-    });
-
     if (!bombExplosionPosition) return null;
 
     const [x, y] = getPos(bombExplosionPosition.x, bombExplosionPosition.y);
 
     return (
-        <group position={[x, y, 0.5]}>
-             <pointLight ref={lightRef} distance={10} intensity={20} color="#FFCC80" decay={1} />
-             <Torus ref={meshRef} args={[0.8, 0.15, 16, 32]} rotation={[Math.PI/2, 0, 0]}>
-                <meshBasicMaterial color="#FFAB91" transparent opacity={1} toneMapped={false} />
-             </Torus>
-             <Sparkles count={80} scale={6} size={12} speed={4} color="#FFE0B2" />
+        <group position={[x, y, 1]}>
+             <pointLight distance={8} intensity={10} color="#FF8A65" decay={1} />
+             <Sparkles count={50} scale={4} size={8} speed={2} color="#FF8A65" />
         </group>
     );
 };
 
-// 3D Menu Decoration Component
 const MenuScene = () => {
     return (
-        <group position={[0, 2.5, 0]}>
-            {/* Title Text */}
+        <group position={[0, 2.8, 0]}>
             <Center top>
                 <Float speed={2} rotationIntensity={0.2} floatIntensity={0.5}>
                     <Text3D
                         font={FONT_URL}
-                        size={1.5}
+                        size={1.4}
                         height={0.4}
-                        curveSegments={12}
+                        curveSegments={20}
                         bevelEnabled
-                        bevelThickness={0.1}
+                        bevelThickness={0.05}
                         bevelSize={0.04}
                         bevelOffset={0}
                         bevelSegments={5}
                         position={[0, 1, 0]}
                     >
                         ELIEZER
-                        <meshStandardMaterial 
-                            color="white" 
-                            roughness={0.4} 
-                            metalness={0.1} 
+                        <meshPhysicalMaterial 
+                            color="#FFFFFF" // Clean White
+                            roughness={0.2} 
+                            metalness={0.1}
+                            clearcoat={0.5} 
                         />
                     </Text3D>
                 </Float>
@@ -84,56 +64,65 @@ const MenuScene = () => {
                 <Float speed={2.5} rotationIntensity={0.2} floatIntensity={0.5} floatingRange={[-0.1, 0.1]}>
                      <Text3D
                         font={FONT_URL}
-                        size={1.5}
+                        size={1.4}
                         height={0.4}
-                        curveSegments={12}
+                        curveSegments={20}
                         bevelEnabled
-                        bevelThickness={0.1}
+                        bevelThickness={0.05}
                         bevelSize={0.04}
                         bevelOffset={0}
                         bevelSegments={5}
                     >
                         RUSH
-                        <meshStandardMaterial 
-                            color="white" 
-                            roughness={0.4} 
-                            metalness={0.1} 
+                        <meshPhysicalMaterial 
+                            color="#FFFFFF"
+                            roughness={0.2} 
                         />
-                        {/* Extrusion sides in Peach */}
-                         <meshStandardMaterial 
+                        {/* The iconic Orange accent from the reference */}
+                         <meshPhysicalMaterial 
                             attach="material-1"
-                            color="#FFAB91" 
+                            color="#FF8A65" 
                             roughness={0.4}
                         />
                     </Text3D>
                 </Float>
             </Center>
 
-            {/* Floating Decorative Shapes (Polygon Runway Style) */}
-            <Float speed={1} rotationIntensity={1} floatIntensity={1} position={[-4, 2, -2]}>
-                <RoundedBox args={[1.5, 1.5, 1.5]} radius={0.2} smoothness={4}>
-                    <meshStandardMaterial color="#FFAB91" roughness={0.3} metalness={0.2} />
-                </RoundedBox>
-            </Float>
-            <Float speed={1.5} rotationIntensity={1} floatIntensity={1.5} position={[4, -3, -3]}>
-                <Sphere args={[1, 32, 32]}>
-                     <meshStandardMaterial color="#90CAF9" roughness={0.2} metalness={0.1} />
+            {/* Decorative "Factory" Elements */}
+            {/* The Cream Sphere Light */}
+            <Float speed={1.5} rotationIntensity={0.5} floatIntensity={1} position={[3.5, 3, -2]}>
+                <Sphere args={[1.2, 32, 32]}>
+                     <meshPhysicalMaterial 
+                        color="#FFF9C4" 
+                        emissive="#FFF9C4"
+                        emissiveIntensity={0.5}
+                        roughness={0.2} 
+                        metalness={0} 
+                    />
                 </Sphere>
             </Float>
-             <Float speed={0.8} rotationIntensity={0.5} floatIntensity={0.5} position={[-3, -5, -1]}>
-                <RoundedBox args={[1, 1, 1]} radius={0.1} smoothness={4} rotation={[0.5, 0.5, 0]}>
-                     <meshStandardMaterial color="white" roughness={0.1} metalness={0.1} />
+
+            {/* The Lavender Cylinder */}
+            <Float speed={1} rotationIntensity={0.5} floatIntensity={0.5} position={[-3.5, -2, -1]}>
+                <CylinderShape />
+            </Float>
+            
+            {/* The Orange Block */}
+            <Float speed={1.2} rotationIntensity={1} floatIntensity={1.5} position={[4, -4, 0]}>
+                <RoundedBox args={[1.2, 1.2, 1.2]} radius={0.1} smoothness={4}>
+                    <meshPhysicalMaterial color="#FF8A65" roughness={0.3} metalness={0.1} />
                 </RoundedBox>
             </Float>
-            <Float speed={1.2} rotationIntensity={2} floatIntensity={1} position={[4, 4, -4]}>
-                <Torus args={[1, 0.4, 16, 32]}>
-                    <meshStandardMaterial color="#FFCC80" roughness={0.3} />
-                </Torus>
-            </Float>
-
         </group>
     );
 };
+
+const CylinderShape = () => (
+    <mesh rotation={[0.4, 0.2, 0.5]}>
+        <cylinderGeometry args={[0.8, 0.8, 1.5, 32]} />
+        <meshPhysicalMaterial color="#B39DDB" roughness={0.3} metalness={0.2} />
+    </mesh>
+);
 
 export default function GameScene() {
   const grid = useGameStore(s => s.grid);
@@ -144,18 +133,32 @@ export default function GameScene() {
 
   return (
     <>
-      {/* Soft Blue Gradient Background via Color */}
-      <color attach="background" args={['#90CAF9']} />
+      {/* 
+         Studio Lighting Setup 
+         Mimicking the soft "Polygon Runway" render style.
+         Main soft warm light from left, cool fill from right.
+      */}
+      <ambientLight intensity={0.6} color="#E3F2FD" />
+      <directionalLight position={[-10, 10, 5]} intensity={1.5} color="#FFF3E0" castShadow />
+      <directionalLight position={[10, 5, 5]} intensity={0.8} color="#E1F5FE" />
       
-      {/* Soft Lighting Setup */}
-      <ambientLight intensity={0.8} color="#ffffff" />
-      <directionalLight position={[10, 20, 10]} intensity={1.2} castShadow color="#FFF3E0" />
-      <directionalLight position={[-10, 5, 10]} intensity={0.5} color="#E3F2FD" />
-      <pointLight position={[0, -10, 5]} intensity={0.5} color="#FFAB91" />
-
-      {/* Subtle Environment reflections */}
-      <Stars radius={100} depth={50} count={1000} factor={4} saturation={0} fade opacity={0.3} />
-      <Sparkles count={50} scale={10} size={2} speed={0.4} opacity={0.4} color="#FFF" />
+      {/* The Reference Background: A curved studio backdrop */}
+      <Backdrop
+        receiveShadow
+        floorPlane={[0, -1, 0]} // Floor normal
+        scale={[50, 20, 10]}
+        position={[0, -2, -5]}
+      >
+        <meshPhysicalMaterial 
+            color="#4FC3F7" // Factory Blue Main
+            roughness={0.6}
+            metalness={0.1}
+            side={THREE.DoubleSide}
+        />
+      </Backdrop>
+      
+      {/* Subtle Environment for reflections */}
+      <Environment preset="city" blur={1} />
 
       {gameState === 'MENU' && (
           <Suspense fallback={null}>
@@ -163,8 +166,7 @@ export default function GameScene() {
           </Suspense>
       )}
 
-      {/* Y=0.1 centers the grid vertically between the Level Bar and Bottom Menu */}
-      <group position={[0, 0.1, 0]}>
+      <group position={[0, 0, 0]}>
         {grid.map((tile) => (
           <Token3D
             key={tile.id}
@@ -174,26 +176,27 @@ export default function GameScene() {
           />
         ))}
         
-        {/* Helper sparkles for matches inside the grid group to maintain relative position */}
         {lastMatchedPositions.map((pos, i) => (
             <Sparkles
             key={`sparkle-${i}`}
-            position={[...getPos(pos.x, pos.y).slice(0, 2) as [number, number], 0.2]}
-            count={30}
-            scale={1.5}
-            size={6}
-            speed={1.5}
-            color="#FFAB91"
+            position={[...getPos(pos.x, pos.y).slice(0, 2) as [number, number], 0.5]}
+            count={20}
+            scale={2}
+            size={5}
+            speed={2}
+            color="#FFF"
             />
         ))}
-
         <ExplosionEffect />
       </group>
 
+      {/* Post Processing for that "Rendered" look */}
       <Suspense fallback={null}>
-        <EffectComposer enableNormalPass={false}>
-          <Bloom luminanceThreshold={0.9} mipmapBlur intensity={0.4} radius={0.4} />
-          <Vignette eskil={false} offset={0.1} darkness={0.3} />
+        <EffectComposer disableNormalPass>
+          <Bloom luminanceThreshold={0.95} mipmapBlur intensity={0.5} radius={0.5} />
+          {/* TiltShift makes it look like a miniature toy set */}
+          <TiltShift2 blur={0.1} /> 
+          <Vignette eskil={false} offset={0.1} darkness={0.4} />
         </EffectComposer>
       </Suspense>
     </>
