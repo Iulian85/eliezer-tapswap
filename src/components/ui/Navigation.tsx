@@ -7,14 +7,15 @@ export default function Navigation() {
   if (gameState === 'PLAYING') return null;
 
   const tabs: { id: TabType; label: string; icon: string }[] = [
-    { id: 'HOME', label: 'Play', icon: '🏠' },
+    { id: 'HOME', label: 'Home', icon: '🏠' },
+    { id: 'TASKS', label: 'Tasks', icon: '✅' },
     { id: 'SHOP', label: 'Shop', icon: '🛍️' },
     { id: 'FRENS', label: 'Frens', icon: '👥' },
     { id: 'WALLET', label: 'Wallet', icon: '👛' },
   ];
 
   return (
-    <div className="absolute bottom-6 left-0 w-full px-8 z-50 pointer-events-none">
+    <div className="absolute bottom-6 left-0 w-full px-4 z-50 pointer-events-none">
       <div className="bg-white/70 backdrop-blur-2xl rounded-3xl p-2 flex justify-between items-center shadow-lg pointer-events-auto max-w-sm mx-auto">
         {tabs.map((tab) => {
           const isActive = activeTab === tab.id;
